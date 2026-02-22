@@ -667,6 +667,177 @@
             width: 100%;
             padding: 10px;
         }
+
+        /* ===== ARHIVA ===== */
+        .archive-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .stat-box {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 12px 8px;
+            text-align: center;
+            border: 1px solid rgba(212, 165, 116, 0.15);
+        }
+
+        .stat-box .stat-num {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .stat-box .stat-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .archive-filter {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .filter-btn {
+            flex: 1;
+            padding: 10px 6px;
+            border: 1px solid rgba(212, 165, 116, 0.25);
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .filter-btn.active {
+            background: rgba(212, 165, 116, 0.15);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .archive-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(212, 165, 116, 0.15);
+        }
+
+        .archive-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .archive-client {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .archive-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 3px;
+        }
+
+        .archive-total {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--accent);
+            margin: 8px 0 4px;
+        }
+
+        .archive-details {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+
+        .badge-poslato {
+            background: rgba(76, 175, 80, 0.15);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.35);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .badge-nije {
+            background: rgba(255, 152, 0, 0.15);
+            color: #ff9800;
+            border: 1px solid rgba(255, 152, 0, 0.35);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .archive-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-arc {
+            flex: 1;
+            padding: 11px 8px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .btn-arc-sent {
+            background: rgba(76, 175, 80, 0.12);
+            border: 1px solid rgba(76, 175, 80, 0.4);
+            color: #4caf50;
+        }
+
+        .btn-arc-unsent {
+            background: rgba(255, 152, 0, 0.12);
+            border: 1px solid rgba(255, 152, 0, 0.4);
+            color: #ff9800;
+        }
+
+        .btn-arc-delete {
+            flex: 0;
+            padding: 11px 16px;
+            background: rgba(231, 76, 60, 0.08);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            color: var(--danger);
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .empty-archive {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+            font-size: 15px;
+            line-height: 1.8;
+        }
+
+        .empty-archive .empty-icon {
+            font-size: 52px;
+            margin-bottom: 16px;
+        }
+
+        .btn-save-arc {
+            background: linear-gradient(135deg, #4caf50, #388e3c);
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -684,6 +855,7 @@
         <button class="tab-btn" onclick="switchTab('staklo')">Staklo</button>
         <button class="tab-btn" onclick="switchTab('sumarno')">Sumarno</button>
         <button class="tab-btn" onclick="switchTab('ponuda')">Ponuda</button>
+        <button class="tab-btn" onclick="switchTab('arhiva')">📂 Arhiva</button>
     </div>
 
     <!-- KLIJENT SEKCIJA -->
@@ -843,6 +1015,9 @@
             <div class="preview-box" id="preview-box"></div>
 
             <div style="margin-top:16px;">
+                <button class="btn btn-save-arc" id="btn-save-archive" onclick="saveToArchive()">
+                    💾 Sačuvaj u arhivu
+                </button>
                 <button class="btn btn-accent" onclick="downloadPDF()">
                     ↓ Preuzmi PDF
                 </button>
@@ -857,6 +1032,34 @@
                 </button>
             </div>
         </div>
+    </div>
+
+    <!-- ARHIVA SEKCIJA -->
+    <div id="tab-arhiva" class="section">
+        <h2 class="section-title">📂 Arhiva ponuda</h2>
+
+        <div class="archive-stats">
+            <div class="stat-box">
+                <div class="stat-num" id="stat-ukupno">0</div>
+                <div class="stat-label">Ukupno</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-num" id="stat-poslato" style="color:#4caf50;">0</div>
+                <div class="stat-label">Poslato</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-num" id="stat-nije" style="color:#ff9800;">0</div>
+                <div class="stat-label">Nije poslato</div>
+            </div>
+        </div>
+
+        <div class="archive-filter">
+            <button class="filter-btn active" onclick="setArchiveFilter('sve')" id="filter-sve">Sve</button>
+            <button class="filter-btn" onclick="setArchiveFilter('nije')" id="filter-nije">⏳ Nije poslato</button>
+            <button class="filter-btn" onclick="setArchiveFilter('poslato')" id="filter-poslato">✓ Poslato</button>
+        </div>
+
+        <div id="archive-list"></div>
     </div>
 
     <!-- Email Overlay -->
@@ -889,6 +1092,8 @@
         let glasses = [];
         let pergolaIdCounter = 0;
         let glassIdCounter = 0;
+        let currentOfferBroj = null;
+        let archiveFilter = 'sve';
 
         // ===== INIT =====
         document.addEventListener('DOMContentLoaded', () => {
@@ -902,13 +1107,14 @@
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('tab-' + name).classList.add('active');
-            const tabs = ['klijent', 'pergole', 'staklo', 'sumarno', 'ponuda'];
+            const tabs = ['klijent', 'pergole', 'staklo', 'sumarno', 'ponuda', 'arhiva'];
             const idx = tabs.indexOf(name);
             document.querySelectorAll('.tab-btn')[idx].classList.add('active');
             if (name === 'sumarno') calcSummary();
             if (name === 'ponuda') {
                 document.getElementById('preview-container').style.display = 'none';
             }
+            if (name === 'arhiva') renderArchive();
             window.scrollTo(0, 0);
         }
 
@@ -1265,6 +1471,14 @@
         // ===== GENERATE PREVIEW =====
         function generatePreview() {
             calcSummary();
+            // Reset save button for new preview
+            currentOfferBroj = Date.now().toString().slice(-6);
+            const btnSave = document.getElementById('btn-save-archive');
+            if (btnSave) {
+                btnSave.textContent = '💾 Sačuvaj u arhivu';
+                btnSave.style.background = '';
+                btnSave.className = 'btn btn-save-arc';
+            }
 
             const clientName = document.getElementById('client-name').value || '—';
             const clientPhone = document.getElementById('client-phone').value || '—';
@@ -1338,7 +1552,7 @@
 
             const html = `
                 <h2>PROHORECA AG GROUP</h2>
-                <h3>Ponuda br. ${Date.now().toString().slice(-6)}</h3>
+                <h3>Ponuda br. ${currentOfferBroj}</h3>
 
                 <div style="font-size:13px;margin-bottom:12px;">
                     <strong>Datum:</strong> ${formattedDate}<br>
@@ -1899,6 +2113,7 @@
         // ===== RESET =====
         function resetAll() {
             if (!confirm('Da li ste sigurni da želite novu ponudu? Svi podaci će biti obrisani.')) return;
+            currentOfferBroj = null;
             document.getElementById('client-name').value = '';
             document.getElementById('client-phone').value = '';
             document.getElementById('client-location').value = '';
@@ -1939,6 +2154,179 @@
 
         function loadSavedPrices() {
             // Prices are loaded when items are added
+        }
+
+        // ===== ARHIVA =====
+        function getArchive() {
+            try { return JSON.parse(localStorage.getItem('ag_archive') || '[]'); }
+            catch { return []; }
+        }
+
+        function saveToArchive() {
+            calcSummary();
+
+            const broj = currentOfferBroj || Date.now().toString().slice(-6);
+            currentOfferBroj = broj;
+
+            const clientName   = document.getElementById('client-name').value || '—';
+            const clientPhone  = document.getElementById('client-phone').value || '—';
+            const clientLocation = document.getElementById('client-location').value || '—';
+            const namena       = document.querySelector('input[name="namena"]:checked')?.value || '—';
+            const offerDate    = document.getElementById('offer-date').value || '';
+            const rok          = document.getElementById('rok-realizacije').value || '—';
+            const napomena     = document.getElementById('napomena').value || '';
+
+            let formattedDate = offerDate;
+            if (offerDate) {
+                const d = new Date(offerDate);
+                formattedDate = `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}.${d.getFullYear()}.`;
+            }
+
+            const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
+            const glassTotal   = parseFloat(document.getElementById('glass-grand-total').textContent) || 0;
+            const subtotal     = pergolaTotal + glassTotal;
+            const discType     = document.getElementById('discount-type').value;
+            const discVal      = parseFloat(document.getElementById('discount-value').value) || 0;
+            let discount = 0;
+            if (discVal > 0) discount = discType === 'percent' ? subtotal * (discVal / 100) : discVal;
+            const total = Math.max(0, subtotal - discount);
+
+            const pergoleSummary = pergolas.map(p => ({
+                tip:    document.querySelector(`input[name="p-type-${p.id}"]:checked`)?.value || '—',
+                montaza: document.querySelector(`input[name="p-mount-${p.id}"]:checked`)?.value || '—',
+                sirina: document.getElementById(`p-width-${p.id}`)?.value || '0',
+                dubina: document.getElementById(`p-depth-${p.id}`)?.value || '0',
+                strane: document.getElementById(`p-sides-${p.id}`)?.value || '0',
+                cena:   parseFloat(document.getElementById(`p-total-${p.id}`)?.value) || 0
+            }));
+
+            const staklaSummary = glasses.map(g => ({
+                tip:    document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '—',
+                montaza: document.querySelector(`input[name="g-mount-${g.id}"]:checked`)?.value || '—',
+                sirina: document.getElementById(`g-width-${g.id}`)?.value || '0',
+                visina: document.getElementById(`g-height-${g.id}`)?.value || '0',
+                polja:  document.getElementById(`g-fields-${g.id}`)?.value || '1',
+                cena:   parseFloat(document.getElementById(`g-total-${g.id}`)?.value) || 0
+            }));
+
+            const offer = {
+                id:             Date.now(),
+                broj,
+                datum:          formattedDate,
+                klijent:        clientName,
+                telefon:        clientPhone,
+                lokacija:       clientLocation,
+                namena,
+                ukupno:         total,
+                pergoleUkupno:  pergolaTotal,
+                stakloUkupno:   glassTotal,
+                popust:         discount,
+                discType,
+                discVal,
+                rok,
+                napomena,
+                status:         'nije_poslato',
+                pergole:        pergoleSummary,
+                stakla:         staklaSummary,
+                savedAt:        new Date().toISOString()
+            };
+
+            const archive = getArchive();
+            const existingIdx = archive.findIndex(a => a.broj === broj);
+            if (existingIdx >= 0) {
+                offer.id     = archive[existingIdx].id;
+                offer.status = archive[existingIdx].status;
+                archive[existingIdx] = offer;
+            } else {
+                archive.unshift(offer);
+            }
+
+            localStorage.setItem('ag_archive', JSON.stringify(archive));
+
+            // Update button
+            const btn = document.getElementById('btn-save-archive');
+            if (btn) {
+                btn.textContent = '✓ Sačuvano u arhivu';
+                btn.style.cssText = 'background:linear-gradient(135deg,#388e3c,#2e7d32);color:white';
+            }
+            showToast('Ponuda sačuvana u arhivu ✓');
+        }
+
+        function setArchiveFilter(filter) {
+            archiveFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('filter-' + filter).classList.add('active');
+            renderArchive();
+        }
+
+        function renderArchive() {
+            const archive  = getArchive();
+            let filtered;
+            if (archiveFilter === 'sve')      filtered = archive;
+            else if (archiveFilter === 'nije') filtered = archive.filter(a => a.status === 'nije_poslato');
+            else                               filtered = archive.filter(a => a.status === 'poslato');
+
+            document.getElementById('stat-ukupno').textContent  = archive.length;
+            document.getElementById('stat-poslato').textContent = archive.filter(a => a.status === 'poslato').length;
+            document.getElementById('stat-nije').textContent    = archive.filter(a => a.status === 'nije_poslato').length;
+
+            const container = document.getElementById('archive-list');
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-archive">
+                        <div class="empty-icon">📂</div>
+                        ${archiveFilter === 'sve'
+                            ? 'Arhiva je prazna.<br>Generiši ponudu i klikni<br><strong>💾 Sačuvaj u arhivu</strong>.'
+                            : 'Nema ponuda u ovoj kategoriji.'}
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(o => `
+                <div class="archive-card">
+                    <div class="archive-card-header">
+                        <div>
+                            <div class="archive-client">${o.klijent}</div>
+                            <div class="archive-meta">📍 ${o.lokacija} &nbsp;·&nbsp; 📅 ${o.datum}</div>
+                        </div>
+                        <span class="${o.status === 'poslato' ? 'badge-poslato' : 'badge-nije'}">
+                            ${o.status === 'poslato' ? '✓ Poslato' : '⏳ Nije poslato'}
+                        </span>
+                    </div>
+                    <div class="archive-total">${o.ukupno.toFixed(2)} EUR</div>
+                    <div class="archive-details">
+                        ${o.pergole.length > 0 ? `🏠 ${o.pergole.length} pergola` : ''}${o.pergole.length > 0 && o.stakla.length > 0 ? ' &nbsp;·&nbsp; ' : ''}${o.stakla.length > 0 ? `🪟 ${o.stakla.length} stakleni sistem` : ''}
+                        ${o.napomena ? `<br>💬 ${o.napomena.substring(0, 50)}${o.napomena.length > 50 ? '...' : ''}` : ''}
+                        ${o.rok && o.rok !== '—' ? `<br>⏱ Rok: ${o.rok}` : ''}
+                    </div>
+                    <div class="archive-actions">
+                        <button class="btn-arc ${o.status === 'poslato' ? 'btn-arc-unsent' : 'btn-arc-sent'}"
+                            onclick="toggleArchiveStatus(${o.id})">
+                            ${o.status === 'poslato' ? '↩ Nije poslato' : '✓ Označi poslato'}
+                        </button>
+                        <button class="btn-arc-delete" onclick="deleteFromArchive(${o.id})">🗑</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleArchiveStatus(id) {
+            const archive = getArchive();
+            const offer   = archive.find(a => a.id === id);
+            if (!offer) return;
+            offer.status = offer.status === 'poslato' ? 'nije_poslato' : 'poslato';
+            localStorage.setItem('ag_archive', JSON.stringify(archive));
+            renderArchive();
+            showToast(offer.status === 'poslato' ? '✓ Označeno kao poslato' : 'Označeno kao nije poslato');
+        }
+
+        function deleteFromArchive(id) {
+            if (!confirm('Obrisati ovu ponudu iz arhive?')) return;
+            let archive = getArchive().filter(a => a.id !== id);
+            localStorage.setItem('ag_archive', JSON.stringify(archive));
+            renderArchive();
+            showToast('Ponuda obrisana');
         }
     </script>
 </body>
