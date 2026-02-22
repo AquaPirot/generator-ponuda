@@ -1,0 +1,4 @@
+.claude/
+*.backup
+*.backup.*
+package-lock.json

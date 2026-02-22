@@ -1,0 +1,26 @@
+{
+  "name": "PROHORECA AG GROUP - Generator Ponuda",
+  "short_name": "AG Ponude",
+  "description": "Generator ponuda za pergole i staklene sisteme",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#d4a574",
+  "orientation": "portrait-primary",
+  "lang": "sr",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
