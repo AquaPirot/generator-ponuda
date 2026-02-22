@@ -1,4 +1,5 @@
 .claude/
+.claude.json
 *.backup
 *.backup.*
 package-lock.json

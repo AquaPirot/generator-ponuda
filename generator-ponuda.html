@@ -1,0 +1,1945 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>PROHORECA AG GROUP - Generator Ponuda</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#d4a574">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Generator Ponuda">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --accent: #d4a574;
+            --accent-dark: #b8895c;
+            --accent-light: #e8c9a8;
+            --bg-dark: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-input: #0f3460;
+            --text-primary: #eee;
+            --text-secondary: #aab;
+            --success: #4caf50;
+            --danger: #e74c3c;
+            --white: #fff;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding-bottom: 80px;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--bg-card), var(--bg-dark));
+            padding: 16px 20px;
+            text-align: center;
+            border-bottom: 3px solid var(--accent);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            color: var(--accent);
+            letter-spacing: 2px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--bg-card);
+            border-bottom: 1px solid rgba(212, 165, 116, 0.2);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .tab-btn {
+            flex: 1;
+            min-width: fit-content;
+            padding: 14px 12px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+            background: rgba(212, 165, 116, 0.08);
+        }
+
+        /* Sections */
+        .section {
+            display: none;
+            padding: 16px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-title {
+            font-size: 18px;
+            color: var(--accent);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(212, 165, 116, 0.3);
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(212, 165, 116, 0.15);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent-light);
+        }
+
+        .card-remove {
+            background: var(--danger);
+            color: white;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--bg-input);
+            border: 1px solid rgba(212, 165, 116, 0.2);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 16px;
+            transition: border-color 0.3s;
+            -webkit-appearance: none;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .form-group select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23d4a574' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* Calculated Display */
+        .calc-display {
+            background: rgba(212, 165, 116, 0.1);
+            border: 1px solid rgba(212, 165, 116, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            margin: 12px 0;
+        }
+
+        .calc-display .label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .calc-display .value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .calc-display .unit {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .calc-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* Price display */
+        .price-box {
+            background: linear-gradient(135deg, rgba(212, 165, 116, 0.15), rgba(212, 165, 116, 0.05));
+            border: 2px solid var(--accent);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            margin: 16px 0;
+        }
+
+        .price-box .label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .price-box .price {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .price-box .currency {
+            font-size: 16px;
+        }
+
+        .editable-price {
+            background: transparent;
+            border: none;
+            border-bottom: 2px dashed rgba(212, 165, 116, 0.4);
+            color: var(--accent);
+            font-size: 22px;
+            font-weight: 800;
+            text-align: center;
+            width: 120px;
+            padding: 2px 4px;
+            font-family: inherit;
+            -moz-appearance: textfield;
+        }
+        .editable-price::-webkit-outer-spin-button,
+        .editable-price::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .editable-price:focus {
+            outline: none;
+            border-bottom-color: var(--accent);
+            background: rgba(212, 165, 116, 0.08);
+            border-radius: 4px;
+        }
+
+        /* Buttons */
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-accent {
+            background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+            color: var(--bg-dark);
+        }
+
+        .btn-accent:active {
+            transform: scale(0.97);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-outline:active {
+            background: rgba(212, 165, 116, 0.1);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-danger {
+            background: transparent;
+            border: 2px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .btn-add {
+            background: rgba(212, 165, 116, 0.1);
+            border: 2px dashed var(--accent);
+            color: var(--accent);
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+
+        .btn-add:active {
+            background: rgba(212, 165, 116, 0.2);
+        }
+
+        /* Summary */
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 15px;
+        }
+
+        .summary-row.total {
+            border-bottom: none;
+            border-top: 2px solid var(--accent);
+            padding-top: 16px;
+            margin-top: 8px;
+        }
+
+        .summary-row.total .sum-label,
+        .summary-row.total .sum-value {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .sum-label {
+            color: var(--text-secondary);
+        }
+
+        .sum-value {
+            font-weight: 700;
+        }
+
+        /* Discount */
+        .discount-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 12px 0;
+        }
+
+        .discount-row select {
+            width: 90px;
+            padding: 10px;
+            background: var(--bg-input);
+            border: 1px solid rgba(212, 165, 116, 0.2);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .discount-row input {
+            flex: 1;
+            padding: 10px 14px;
+            background: var(--bg-input);
+            border: 1px solid rgba(212, 165, 116, 0.2);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 16px;
+        }
+
+        .discount-row input:focus,
+        .discount-row select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* Preview */
+        .preview-box {
+            background: var(--white);
+            color: #333;
+            border-radius: 12px;
+            padding: 24px 16px;
+            font-size: 14px;
+            line-height: 1.7;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .preview-box h2 {
+            color: var(--bg-dark);
+            font-size: 18px;
+            text-align: center;
+            margin-bottom: 4px;
+        }
+
+        .preview-box h3 {
+            color: var(--accent-dark);
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .preview-box .section-header {
+            color: var(--bg-dark);
+            font-weight: 700;
+            font-size: 15px;
+            margin-top: 16px;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .preview-box table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+
+        .preview-box table th {
+            background: var(--bg-dark);
+            color: var(--accent);
+            padding: 8px 6px;
+            text-align: left;
+            font-size: 12px;
+        }
+
+        .preview-box table td {
+            padding: 8px 6px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .preview-box .total-line {
+            text-align: right;
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--bg-dark);
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 2px solid var(--accent);
+        }
+
+        .preview-box .footer-note {
+            font-size: 12px;
+            color: #888;
+            margin-top: 16px;
+            text-align: center;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--success);
+            color: white;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            z-index: 9999;
+            transition: transform 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Radio style buttons */
+        .radio-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .radio-option {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .radio-option input {
+            display: none;
+        }
+
+        .radio-option label {
+            display: block;
+            padding: 12px 8px;
+            text-align: center;
+            background: var(--bg-input);
+            border: 2px solid rgba(212, 165, 116, 0.2);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.3s;
+        }
+
+        .radio-option input:checked + label {
+            border-color: var(--accent);
+            background: rgba(212, 165, 116, 0.15);
+            color: var(--accent);
+        }
+
+        /* Number selector */
+        .number-selector {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .number-selector button {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            background: transparent;
+            color: var(--accent);
+            font-size: 22px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .number-selector button:active {
+            background: rgba(212, 165, 116, 0.2);
+        }
+
+        .number-selector .number-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--accent);
+            min-width: 30px;
+            text-align: center;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 4px;
+        }
+
+        /* Separator line */
+        .separator {
+            height: 1px;
+            background: rgba(212, 165, 116, 0.15);
+            margin: 16px 0;
+        }
+
+        /* Status badge */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .badge-gold {
+            background: rgba(212, 165, 116, 0.2);
+            color: var(--accent);
+        }
+
+        /* Smooth scroll on iOS */
+        .section {
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Email overlay */
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .overlay.show {
+            display: flex;
+        }
+
+        .overlay-content {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid rgba(212, 165, 116, 0.3);
+        }
+
+        .overlay-content h3 {
+            color: var(--accent);
+            margin-bottom: 16px;
+        }
+
+        .overlay-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 12px;
+            width: 100%;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <h1>PROHORECA AG GROUP</h1>
+        <p>Generator ponuda - Pergole i stakleni sistemi</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('klijent')">Klijent</button>
+        <button class="tab-btn" onclick="switchTab('pergole')">Pergole</button>
+        <button class="tab-btn" onclick="switchTab('staklo')">Staklo</button>
+        <button class="tab-btn" onclick="switchTab('sumarno')">Sumarno</button>
+        <button class="tab-btn" onclick="switchTab('ponuda')">Ponuda</button>
+    </div>
+
+    <!-- KLIJENT SEKCIJA -->
+    <div id="tab-klijent" class="section active">
+        <h2 class="section-title">Podaci o klijentu</h2>
+
+        <div class="card">
+            <div class="form-group">
+                <label>Ime i prezime</label>
+                <input type="text" id="client-name" placeholder="Unesite ime i prezime" oninput="saveState()">
+            </div>
+            <div class="form-group">
+                <label>Telefon</label>
+                <input type="tel" id="client-phone" placeholder="Broj telefona" oninput="saveState()">
+            </div>
+            <div class="form-group">
+                <label>Lokacija</label>
+                <input type="text" id="client-location" placeholder="Grad / Adresa" oninput="saveState()">
+            </div>
+            <div class="form-group">
+                <label>Namena</label>
+                <div class="radio-group">
+                    <div class="radio-option">
+                        <input type="radio" id="namena-privatno" name="namena" value="Privatno" checked onchange="saveState()">
+                        <label for="namena-privatno">Privatno</label>
+                    </div>
+                    <div class="radio-option">
+                        <input type="radio" id="namena-ugostit" name="namena" value="Ugostiteljski" onchange="saveState()">
+                        <label for="namena-ugostit">Ugostiteljski</label>
+                    </div>
+                    <div class="radio-option">
+                        <input type="radio" id="namena-poslovni" name="namena" value="Poslovni" onchange="saveState()">
+                        <label for="namena-poslovni">Poslovni</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Datum ponude</label>
+            <input type="date" id="offer-date" oninput="saveState()">
+        </div>
+
+        <button class="btn btn-accent" onclick="switchTab('pergole')">Dalje → Pergole</button>
+    </div>
+
+    <!-- PERGOLE SEKCIJA -->
+    <div id="tab-pergole" class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h2 class="section-title" style="margin-bottom:0;border:none;padding:0;">Pergole</h2>
+            <span class="badge badge-gold" id="pergola-count-badge">0 pergola</span>
+        </div>
+
+        <div id="pergola-container"></div>
+
+        <button class="btn-add" onclick="addPergola()">+ Dodaj pergolu</button>
+
+        <div class="price-box" id="pergola-total-box">
+            <div class="label">Ukupno pergole</div>
+            <div class="price"><span id="pergola-grand-total">0.00</span> <span class="currency">EUR</span></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <button class="btn btn-outline" onclick="switchTab('klijent')">← Klijent</button>
+            <button class="btn btn-accent" onclick="switchTab('staklo')">Staklo →</button>
+        </div>
+    </div>
+
+    <!-- STAKLO SEKCIJA -->
+    <div id="tab-staklo" class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h2 class="section-title" style="margin-bottom:0;border:none;padding:0;">Stakleni sistemi</h2>
+            <span class="badge badge-gold" id="glass-count-badge">0 sistema</span>
+        </div>
+
+        <div id="glass-container"></div>
+
+        <button class="btn-add" onclick="addGlass()">+ Dodaj stakleni sistem</button>
+
+        <div class="price-box" id="glass-total-box">
+            <div class="label">Ukupno stakleni sistemi</div>
+            <div class="price"><span id="glass-grand-total">0.00</span> <span class="currency">EUR</span></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <button class="btn btn-outline" onclick="switchTab('pergole')">← Pergole</button>
+            <button class="btn btn-accent" onclick="switchTab('sumarno')">Sumarno →</button>
+        </div>
+    </div>
+
+    <!-- SUMARNO SEKCIJA -->
+    <div id="tab-sumarno" class="section">
+        <h2 class="section-title">Sumarni pregled</h2>
+
+        <div class="card">
+            <div class="summary-row">
+                <span class="sum-label">Pergole</span>
+                <span class="sum-value"><span id="sum-pergole">0.00</span> EUR</span>
+            </div>
+            <div class="summary-row">
+                <span class="sum-label">Stakleni sistemi</span>
+                <span class="sum-value"><span id="sum-staklo">0.00</span> EUR</span>
+            </div>
+            <div class="summary-row">
+                <span class="sum-label">Međuzbir</span>
+                <span class="sum-value"><span id="sum-subtotal">0.00</span> EUR</span>
+            </div>
+
+            <div class="separator"></div>
+
+            <label style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;display:block;">Popust</label>
+            <div class="discount-row">
+                <select id="discount-type" onchange="calcSummary()">
+                    <option value="percent">%</option>
+                    <option value="fixed">EUR</option>
+                </select>
+                <input type="number" id="discount-value" placeholder="0" min="0" oninput="calcSummary()">
+            </div>
+
+            <div class="summary-row" id="discount-row-display" style="display:none;">
+                <span class="sum-label">Popust</span>
+                <span class="sum-value" style="color:var(--danger);">-<span id="sum-discount">0.00</span> EUR</span>
+            </div>
+
+            <div class="summary-row total">
+                <span class="sum-label">UKUPNO</span>
+                <span class="sum-value"><span id="sum-total">0.00</span> EUR</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="form-group">
+                <label>Rok realizacije</label>
+                <input type="text" id="rok-realizacije" placeholder="npr. 30 radnih dana" oninput="saveState()">
+            </div>
+            <div class="form-group">
+                <label>Napomena</label>
+                <textarea id="napomena" placeholder="Dodatne napomene za ponudu..." oninput="saveState()"></textarea>
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <button class="btn btn-outline" onclick="switchTab('staklo')">← Staklo</button>
+            <button class="btn btn-accent" onclick="switchTab('ponuda')">Ponuda →</button>
+        </div>
+    </div>
+
+    <!-- PONUDA SEKCIJA -->
+    <div id="tab-ponuda" class="section">
+        <h2 class="section-title">Generisana ponuda</h2>
+
+        <button class="btn btn-accent" onclick="generatePreview()" style="margin-bottom:16px;">
+            ✦ Generiši ponudu
+        </button>
+
+        <div id="preview-container" style="display:none;">
+            <div class="preview-box" id="preview-box"></div>
+
+            <div style="margin-top:16px;">
+                <button class="btn btn-accent" onclick="downloadPDF()">
+                    ↓ Preuzmi PDF
+                </button>
+                <button class="btn btn-outline" onclick="copyText()">
+                    ❐ Kopiraj tekst (WhatsApp/Viber)
+                </button>
+                <button class="btn btn-outline" onclick="showEmailOverlay()">
+                    ✉ Pošalji na email
+                </button>
+                <button class="btn btn-danger" onclick="resetAll()">
+                    Nova ponuda
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Overlay -->
+    <div class="overlay" id="email-overlay">
+        <div class="overlay-content">
+            <h3>Pošalji ponudu na email</h3>
+            <div class="form-group">
+                <label>Email adresa klijenta</label>
+                <input type="email" id="email-to" placeholder="email@example.com">
+            </div>
+            <button class="btn btn-accent" onclick="sendEmail()">Pošalji</button>
+            <button class="overlay-close" onclick="hideEmailOverlay()">Otkaži</button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js');
+            });
+        }
+    </script>
+
+    <script>
+        // ===== STATE =====
+        let pergolas = [];
+        let glasses = [];
+        let pergolaIdCounter = 0;
+        let glassIdCounter = 0;
+
+        // ===== INIT =====
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('offer-date').value = today;
+            loadSavedPrices();
+        });
+
+        // ===== TABS =====
+        function switchTab(name) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
+            const tabs = ['klijent', 'pergole', 'staklo', 'sumarno', 'ponuda'];
+            const idx = tabs.indexOf(name);
+            document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+            if (name === 'sumarno') calcSummary();
+            if (name === 'ponuda') {
+                document.getElementById('preview-container').style.display = 'none';
+            }
+            window.scrollTo(0, 0);
+        }
+
+        // ===== PERGOLA =====
+        function addPergola() {
+            const id = ++pergolaIdCounter;
+            const savedPergolaPrice = localStorage.getItem('price_pergola_m2') || '';
+            const savedClosePrice = localStorage.getItem('price_close_m2') || '';
+            pergolas.push({ id });
+            renderPergolas();
+            // Set saved prices
+            const priceInput = document.getElementById(`p-price-${id}`);
+            const closePriceInput = document.getElementById(`p-close-price-${id}`);
+            if (priceInput && savedPergolaPrice) priceInput.value = savedPergolaPrice;
+            if (closePriceInput && savedClosePrice) closePriceInput.value = savedClosePrice;
+            calcPergolaItem(id);
+        }
+
+        function removePergola(id) {
+            pergolas = pergolas.filter(p => p.id !== id);
+            renderPergolas();
+            calcAllPergolas();
+        }
+
+        function renderPergolas() {
+            const container = document.getElementById('pergola-container');
+            container.innerHTML = '';
+            pergolas.forEach((p, idx) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.id = `pergola-card-${p.id}`;
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="card-title">Pergola ${idx + 1}</span>
+                        <button class="card-remove" onclick="removePergola(${p.id})">×</button>
+                    </div>
+                    <div class="form-group">
+                        <label>Način montaže</label>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="p-mount-sam-${p.id}" name="p-mount-${p.id}" value="Samostojeća" checked onchange="saveState()">
+                                <label for="p-mount-sam-${p.id}">Samostojeća</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="p-mount-nas-${p.id}" name="p-mount-${p.id}" value="Naslonjena na objekat" onchange="saveState()">
+                                <label for="p-mount-nas-${p.id}">Naslonjena</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Širina (cm)</label>
+                            <input type="number" id="p-width-${p.id}" placeholder="cm" min="0" oninput="calcPergolaItem(${p.id})">
+                        </div>
+                        <div class="form-group">
+                            <label>Dubina (cm)</label>
+                            <input type="number" id="p-depth-${p.id}" placeholder="cm" min="0" oninput="calcPergolaItem(${p.id})">
+                        </div>
+                    </div>
+                    <div class="calc-display">
+                        <div class="label">Kvadratura</div>
+                        <div class="value"><span id="p-area-${p.id}">0.00</span> <span class="unit">m²</span></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Tip pergole</label>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="p-type-bio-${p.id}" name="p-type-${p.id}" value="Bioklimatska" checked onchange="saveState()">
+                                <label for="p-type-bio-${p.id}">Bioklimatska</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="p-type-cer-${p.id}" name="p-type-${p.id}" value="Ceradno platno" onchange="saveState()">
+                                <label for="p-type-cer-${p.id}">Ceradno platno</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Zatvaranje strana</label>
+                        <select id="p-sides-${p.id}" onchange="calcPergolaItem(${p.id})">
+                            <option value="0">0 strana</option>
+                            <option value="1">1 strana</option>
+                            <option value="2">2 strane</option>
+                            <option value="3">3 strane</option>
+                            <option value="4">4 strane</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Cena pergole (€/m²)</label>
+                            <input type="number" id="p-price-${p.id}" placeholder="EUR/m²" min="0" step="0.01" oninput="calcPergolaItem(${p.id}); savePriceLS('price_pergola_m2', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Cena zatv. (€/m²)</label>
+                            <input type="number" id="p-close-price-${p.id}" placeholder="EUR/m²" min="0" step="0.01" oninput="calcPergolaItem(${p.id}); savePriceLS('price_close_m2', this.value)">
+                        </div>
+                    </div>
+                    <div class="calc-row">
+                        <div class="calc-display">
+                            <div class="label">Cena pergole</div>
+                            <div class="value" style="font-size:18px;"><span id="p-subtotal-${p.id}">0.00</span> <span class="unit">€</span></div>
+                        </div>
+                        <div class="calc-display">
+                            <div class="label">Cena zatvaranja</div>
+                            <div class="value" style="font-size:18px;"><span id="p-close-subtotal-${p.id}">0.00</span> <span class="unit">€</span></div>
+                        </div>
+                    </div>
+                    <div class="price-box" style="margin-top:8px;">
+                        <div class="label">Ukupno ova pergola (klikni da koriguj.)</div>
+                        <div class="price" style="font-size:22px;">
+                            <input type="number" id="p-total-${p.id}" class="editable-price" value="0.00" min="0" step="1" oninput="onManualPergolaPrice(${p.id})">
+                            <span class="currency">EUR</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            document.getElementById('pergola-count-badge').textContent = pergolas.length + (pergolas.length === 1 ? ' pergola' : ' pergola');
+        }
+
+        function calcPergolaItem(id) {
+            const w = parseFloat(document.getElementById(`p-width-${id}`)?.value) || 0;
+            const d = parseFloat(document.getElementById(`p-depth-${id}`)?.value) || 0;
+            const area = (w * d) / 10000;
+            const sides = parseInt(document.getElementById(`p-sides-${id}`)?.value) || 0;
+            const priceM2 = parseFloat(document.getElementById(`p-price-${id}`)?.value) || 0;
+            const closePriceM2 = parseFloat(document.getElementById(`p-close-price-${id}`)?.value) || 0;
+
+            // Approximate side closing area: assume height=250cm, use width & depth for perimeter
+            // Side area calculation: we estimate side panels based on pergola dimensions
+            const heightCm = 250; // default assumed height for sides
+            let sideArea = 0;
+            if (sides > 0) {
+                // Calculate perimeter sides: 2 x width + 2 x depth sides available
+                const sideLengths = [];
+                if (w > 0) sideLengths.push(w, w);
+                if (d > 0) sideLengths.push(d, d);
+                // Take first N sides from available
+                for (let i = 0; i < Math.min(sides, sideLengths.length); i++) {
+                    sideArea += (sideLengths[i] * heightCm) / 10000;
+                }
+            }
+
+            const pergolaPrice = area * priceM2;
+            const closePrice = sideArea * closePriceM2;
+            const total = pergolaPrice + closePrice;
+
+            if (document.getElementById(`p-area-${id}`)) {
+                document.getElementById(`p-area-${id}`).textContent = area.toFixed(2);
+                document.getElementById(`p-subtotal-${id}`).textContent = pergolaPrice.toFixed(2);
+                document.getElementById(`p-close-subtotal-${id}`).textContent = closePrice.toFixed(2);
+                document.getElementById(`p-total-${id}`).value = total.toFixed(2);
+            }
+
+            calcAllPergolas();
+        }
+
+        function getGlassInfoNotes() {
+            let hasSlajding = false;
+            let hasGiljotina = false;
+            glasses.forEach(g => {
+                const type = document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '';
+                if (type === 'Slajding') hasSlajding = true;
+                if (type === 'Giljotina') hasGiljotina = true;
+            });
+            let notes = '';
+            if (hasSlajding && hasGiljotina) {
+                notes = 'Slajding i giljotina sistemi: duplo staklo 4+14+4mm.<br>Giljotina sistemi: motor uključen u cenu.<br>';
+            } else if (hasSlajding) {
+                notes = 'Slajding sistem: duplo staklo 4+14+4mm.<br>';
+            } else if (hasGiljotina) {
+                notes = 'Giljotina sistem: duplo staklo 4+14+4mm, motor uključen u cenu.<br>';
+            }
+            return notes;
+        }
+
+        function onManualPergolaPrice(id) {
+            // User manually edited the total - just recalculate grand total
+            calcAllPergolas();
+        }
+
+        function onManualGlassPrice(id) {
+            // User manually edited the total - just recalculate grand total
+            calcAllGlasses();
+        }
+
+        function calcAllPergolas() {
+            let grand = 0;
+            pergolas.forEach(p => {
+                const el = document.getElementById(`p-total-${p.id}`);
+                if (el) grand += parseFloat(el.value) || 0;
+            });
+            document.getElementById('pergola-grand-total').textContent = grand.toFixed(2);
+        }
+
+        // ===== GLASS =====
+        function addGlass() {
+            const id = ++glassIdCounter;
+            const savedGlassPrice = localStorage.getItem('price_glass_m2') || '';
+            glasses.push({ id });
+            renderGlasses();
+            const priceInput = document.getElementById(`g-price-${id}`);
+            if (priceInput && savedGlassPrice) priceInput.value = savedGlassPrice;
+            calcGlassItem(id);
+        }
+
+        function removeGlass(id) {
+            glasses = glasses.filter(g => g.id !== id);
+            renderGlasses();
+            calcAllGlasses();
+        }
+
+        function renderGlasses() {
+            const container = document.getElementById('glass-container');
+            container.innerHTML = '';
+            glasses.forEach((g, idx) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.id = `glass-card-${g.id}`;
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="card-title">Stakleni sistem ${idx + 1}</span>
+                        <button class="card-remove" onclick="removeGlass(${g.id})">×</button>
+                    </div>
+                    <div class="form-group">
+                        <label>Gde se montira</label>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="g-mount-pergola-${g.id}" name="g-mount-${g.id}" value="Ispod pergole" checked onchange="saveState()">
+                                <label for="g-mount-pergola-${g.id}">Ispod pergole</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="g-mount-fasada-${g.id}" name="g-mount-${g.id}" value="Fasada" onchange="saveState()">
+                                <label for="g-mount-fasada-${g.id}">Fasada</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="g-mount-solo-${g.id}" name="g-mount-${g.id}" value="Samostalno" onchange="saveState()">
+                                <label for="g-mount-solo-${g.id}">Samostalno</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Broj strana za zatvaranje</label>
+                        <select id="g-sides-${g.id}" onchange="saveState()">
+                            <option value="1">1 strana</option>
+                            <option value="2">2 strane</option>
+                            <option value="3">3 strane</option>
+                            <option value="4">4 strane</option>
+                        </select>
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label>Širina (cm)</label>
+                            <input type="number" id="g-width-${g.id}" placeholder="cm" min="0" oninput="calcGlassItem(${g.id})">
+                        </div>
+                        <div class="form-group">
+                            <label>Visina (cm)</label>
+                            <input type="number" id="g-height-${g.id}" placeholder="cm" min="0" oninput="calcGlassItem(${g.id})">
+                        </div>
+                        <div class="form-group">
+                            <label>Br. polja</label>
+                            <input type="number" id="g-fields-${g.id}" placeholder="1" min="1" value="1" oninput="calcGlassItem(${g.id})">
+                        </div>
+                    </div>
+                    <div class="calc-display">
+                        <div class="label">Kvadratura</div>
+                        <div class="value"><span id="g-area-${g.id}">0.00</span> <span class="unit">m²</span></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Tip stakla</label>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="g-type-slajding-${g.id}" name="g-type-${g.id}" value="Slajding" checked onchange="saveState()">
+                                <label for="g-type-slajding-${g.id}">Slajding</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="g-type-giljotina-${g.id}" name="g-type-${g.id}" value="Giljotina" onchange="saveState()">
+                                <label for="g-type-giljotina-${g.id}">Giljotina</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Cena stakla (€/m²)</label>
+                        <input type="number" id="g-price-${g.id}" placeholder="EUR/m²" min="0" step="0.01" oninput="calcGlassItem(${g.id}); savePriceLS('price_glass_m2', this.value)">
+                    </div>
+                    <div class="price-box">
+                        <div class="label">Ukupno ovaj sistem (klikni da koriguj.)</div>
+                        <div class="price" style="font-size:22px;">
+                            <input type="number" id="g-total-${g.id}" class="editable-price" value="0.00" min="0" step="1" oninput="onManualGlassPrice(${g.id})">
+                            <span class="currency">EUR</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            document.getElementById('glass-count-badge').textContent = glasses.length + (glasses.length === 1 ? ' sistem' : ' sistema');
+        }
+
+        function calcGlassItem(id) {
+            const w = parseFloat(document.getElementById(`g-width-${id}`)?.value) || 0;
+            const h = parseFloat(document.getElementById(`g-height-${id}`)?.value) || 0;
+            const fields = parseInt(document.getElementById(`g-fields-${id}`)?.value) || 1;
+            const priceM2 = parseFloat(document.getElementById(`g-price-${id}`)?.value) || 0;
+
+            const area = (w * h * fields) / 10000;
+            const total = area * priceM2;
+
+            if (document.getElementById(`g-area-${id}`)) {
+                document.getElementById(`g-area-${id}`).textContent = area.toFixed(2);
+                document.getElementById(`g-total-${id}`).value = total.toFixed(2);
+            }
+
+            calcAllGlasses();
+        }
+
+        function calcAllGlasses() {
+            let grand = 0;
+            glasses.forEach(g => {
+                const el = document.getElementById(`g-total-${g.id}`);
+                if (el) grand += parseFloat(el.value) || 0;
+            });
+            document.getElementById('glass-grand-total').textContent = grand.toFixed(2);
+        }
+
+        // ===== SUMMARY =====
+        function calcSummary() {
+            const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
+            const glassTotal = parseFloat(document.getElementById('glass-grand-total').textContent) || 0;
+            const subtotal = pergolaTotal + glassTotal;
+
+            document.getElementById('sum-pergole').textContent = pergolaTotal.toFixed(2);
+            document.getElementById('sum-staklo').textContent = glassTotal.toFixed(2);
+            document.getElementById('sum-subtotal').textContent = subtotal.toFixed(2);
+
+            const discType = document.getElementById('discount-type').value;
+            const discVal = parseFloat(document.getElementById('discount-value').value) || 0;
+            let discount = 0;
+
+            if (discVal > 0) {
+                if (discType === 'percent') {
+                    discount = subtotal * (discVal / 100);
+                } else {
+                    discount = discVal;
+                }
+                document.getElementById('discount-row-display').style.display = 'flex';
+                document.getElementById('sum-discount').textContent = discount.toFixed(2);
+            } else {
+                document.getElementById('discount-row-display').style.display = 'none';
+            }
+
+            const total = Math.max(0, subtotal - discount);
+            document.getElementById('sum-total').textContent = total.toFixed(2);
+        }
+
+        // ===== GENERATE PREVIEW =====
+        function generatePreview() {
+            calcSummary();
+
+            const clientName = document.getElementById('client-name').value || '—';
+            const clientPhone = document.getElementById('client-phone').value || '—';
+            const clientLocation = document.getElementById('client-location').value || '—';
+            const namena = document.querySelector('input[name="namena"]:checked')?.value || '—';
+            const offerDate = document.getElementById('offer-date').value || '—';
+            const rok = document.getElementById('rok-realizacije').value || '—';
+            const napomena = document.getElementById('napomena').value || '';
+
+            const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
+            const glassTotal = parseFloat(document.getElementById('glass-grand-total').textContent) || 0;
+            const subtotal = pergolaTotal + glassTotal;
+            const discType = document.getElementById('discount-type').value;
+            const discVal = parseFloat(document.getElementById('discount-value').value) || 0;
+            let discount = 0;
+            if (discVal > 0) {
+                discount = discType === 'percent' ? subtotal * (discVal / 100) : discVal;
+            }
+            const total = Math.max(0, subtotal - discount);
+
+            let formattedDate = offerDate;
+            if (offerDate && offerDate !== '—') {
+                const d = new Date(offerDate);
+                formattedDate = `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}.`;
+            }
+
+            // Build pergola rows
+            let pergolaRows = '';
+            pergolas.forEach((p, idx) => {
+                const mount = document.querySelector(`input[name="p-mount-${p.id}"]:checked`)?.value || '—';
+                const w = document.getElementById(`p-width-${p.id}`)?.value || '0';
+                const d = document.getElementById(`p-depth-${p.id}`)?.value || '0';
+                const area = ((parseFloat(w) * parseFloat(d)) / 10000).toFixed(2);
+                const type = document.querySelector(`input[name="p-type-${p.id}"]:checked`)?.value || '—';
+                const sides = document.getElementById(`p-sides-${p.id}`)?.value || '0';
+                const totalP = document.getElementById(`p-total-${p.id}`)?.value || '0.00';
+                pergolaRows += `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${type}<br><small style="color:#888">${mount}</small></td>
+                        <td>${w}×${d} cm<br><small style="color:#888">${area} m²</small></td>
+                        <td>${sides}</td>
+                        <td style="text-align:right;font-weight:700;">${totalP} €</td>
+                    </tr>`;
+            });
+
+            // Build glass rows
+            let glassRows = '';
+            glasses.forEach((g, idx) => {
+                const mount = document.querySelector(`input[name="g-mount-${g.id}"]:checked`)?.value || '—';
+                const w = document.getElementById(`g-width-${g.id}`)?.value || '0';
+                const h = document.getElementById(`g-height-${g.id}`)?.value || '0';
+                const fields = document.getElementById(`g-fields-${g.id}`)?.value || '1';
+                const area = document.getElementById(`g-area-${g.id}`)?.textContent || '0.00';
+                const type = document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '—';
+                const totalG = document.getElementById(`g-total-${g.id}`)?.value || '0.00';
+                glassRows += `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${type}<br><small style="color:#888">${mount}</small></td>
+                        <td>${w}×${h} cm<br><small style="color:#888">${area} m², ${fields} polja</small></td>
+                        <td style="text-align:right;font-weight:700;">${totalG} €</td>
+                    </tr>`;
+            });
+
+            let discountLine = '';
+            if (discount > 0) {
+                const discLabel = discType === 'percent' ? `${discVal}%` : `${discVal} EUR`;
+                discountLine = `<div style="text-align:right;color:#e74c3c;font-size:14px;">Popust (${discLabel}): -${discount.toFixed(2)} EUR</div>`;
+            }
+
+            const html = `
+                <h2>PROHORECA AG GROUP</h2>
+                <h3>Ponuda br. ${Date.now().toString().slice(-6)}</h3>
+
+                <div style="font-size:13px;margin-bottom:12px;">
+                    <strong>Datum:</strong> ${formattedDate}<br>
+                    <strong>Klijent:</strong> ${clientName}<br>
+                    <strong>Telefon:</strong> ${clientPhone}<br>
+                    <strong>Lokacija:</strong> ${clientLocation}<br>
+                    <strong>Namena:</strong> ${namena}
+                </div>
+
+                ${pergolas.length > 0 ? `
+                <div class="section-header">PERGOLE</div>
+                <table>
+                    <tr>
+                        <th>#</th>
+                        <th>Tip</th>
+                        <th>Dimenzije</th>
+                        <th>Strane</th>
+                        <th style="text-align:right;">Cena</th>
+                    </tr>
+                    ${pergolaRows}
+                </table>
+                <div style="text-align:right;font-weight:700;margin:8px 0;">Pergole ukupno: ${pergolaTotal.toFixed(2)} EUR</div>
+                <div style="font-size:12px;color:#666;background:#f8f5f0;padding:8px 10px;border-radius:6px;margin:8px 0;line-height:1.6;">
+                    U cenu je uključeno: motor, automatika i LED rasveta.<br>
+                    Montaža i transport do gradilišta su uračunati.
+                </div>
+                ` : ''}
+
+                ${glasses.length > 0 ? `
+                <div class="section-header">STAKLENI SISTEMI</div>
+                <table>
+                    <tr>
+                        <th>#</th>
+                        <th>Tip</th>
+                        <th>Dimenzije</th>
+                        <th style="text-align:right;">Cena</th>
+                    </tr>
+                    ${glassRows}
+                </table>
+                <div style="text-align:right;font-weight:700;margin:8px 0;">Staklo ukupno: ${glassTotal.toFixed(2)} EUR</div>
+                <div style="font-size:12px;color:#666;background:#f8f5f0;padding:8px 10px;border-radius:6px;margin:8px 0;line-height:1.6;">
+                    ${getGlassInfoNotes()}
+                    Montaža i transport do gradilišta su uračunati.
+                </div>
+                ` : ''}
+
+                <div style="margin-top:16px;padding-top:12px;border-top:1px solid #ddd;">
+                    <div style="text-align:right;font-size:14px;">Međuzbir: ${subtotal.toFixed(2)} EUR</div>
+                    ${discountLine}
+                </div>
+
+                <div class="total-line">UKUPNO: ${total.toFixed(2)} EUR</div>
+
+                ${rok !== '—' ? `<div style="margin-top:12px;font-size:13px;"><strong>Rok realizacije:</strong> ${rok}</div>` : ''}
+                ${napomena ? `<div style="margin-top:8px;font-size:13px;"><strong>Napomena:</strong> ${napomena}</div>` : ''}
+
+                <div class="footer-note">
+                    PROHORECA AG GROUP | Tel: 0648979242 - Aleksandar<br>
+                    Ponuda važi 7 dana od datuma izdavanja.
+                </div>
+            `;
+
+            document.getElementById('preview-box').innerHTML = html;
+            document.getElementById('preview-container').style.display = 'block';
+            document.getElementById('preview-container').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // ===== PDF =====
+        // Helper: convert Serbian chars to ASCII for PDF (Helvetica has no č,ž,š,đ,ć)
+        function pdfSafe(str) {
+            if (!str) return str;
+            return str
+                .replace(/č/g, 'c').replace(/Č/g, 'C')
+                .replace(/ć/g, 'c').replace(/Ć/g, 'C')
+                .replace(/ž/g, 'z').replace(/Ž/g, 'Z')
+                .replace(/š/g, 's').replace(/Š/g, 'S')
+                .replace(/đ/g, 'dj').replace(/Đ/g, 'Dj');
+        }
+
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = 210;
+            const margin = 15;
+            const contentWidth = pageWidth - 2 * margin;
+            let y = 15;
+
+            const clientName = pdfSafe(document.getElementById('client-name').value || '—');
+            const clientPhone = document.getElementById('client-phone').value || '—';
+            const clientLocation = pdfSafe(document.getElementById('client-location').value || '—');
+            const namena = pdfSafe(document.querySelector('input[name="namena"]:checked')?.value || '—');
+            const offerDate = document.getElementById('offer-date').value || '—';
+            const rok = pdfSafe(document.getElementById('rok-realizacije').value || '—');
+            const napomena = pdfSafe(document.getElementById('napomena').value || '');
+
+            let formattedDate = offerDate;
+            if (offerDate && offerDate !== '—') {
+                const d = new Date(offerDate);
+                formattedDate = `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}.`;
+            }
+
+            const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
+            const glassTotal = parseFloat(document.getElementById('glass-grand-total').textContent) || 0;
+            const subtotal = pergolaTotal + glassTotal;
+            const discType = document.getElementById('discount-type').value;
+            const discVal = parseFloat(document.getElementById('discount-value').value) || 0;
+            let discount = 0;
+            if (discVal > 0) discount = discType === 'percent' ? subtotal * (discVal / 100) : discVal;
+            const total = Math.max(0, subtotal - discount);
+
+            // Helper functions
+            function checkPage(needed) {
+                if (y + needed > 280) {
+                    doc.addPage();
+                    y = 15;
+                }
+            }
+
+            function drawLine(yPos) {
+                doc.setDrawColor(212, 165, 116);
+                doc.setLineWidth(0.5);
+                doc.line(margin, yPos, pageWidth - margin, yPos);
+            }
+
+            // Header
+            doc.setFillColor(26, 26, 46);
+            doc.rect(0, 0, 210, 35, 'F');
+            doc.setTextColor(212, 165, 116);
+            doc.setFontSize(20);
+            doc.setFont('helvetica', 'bold');
+            doc.text('PROHORECA AG GROUP', pageWidth / 2, 16, { align: 'center' });
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(170, 170, 187);
+            doc.text('Pergole i stakleni sistemi', pageWidth / 2, 24, { align: 'center' });
+            doc.text('Tel: 0648979242 | Aleksandar', pageWidth / 2, 30, { align: 'center' });
+
+            y = 42;
+
+            // Offer number & date
+            doc.setTextColor(50, 50, 50);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('PONUDA', margin, y);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Datum: ${formattedDate}`, pageWidth - margin, y, { align: 'right' });
+            y += 8;
+
+            drawLine(y);
+            y += 8;
+
+            // Client info
+            doc.setFontSize(11);
+            doc.setTextColor(50, 50, 50);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Podaci o klijentu:', margin, y);
+            y += 7;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            const clientInfo = [
+                `Ime i prezime: ${clientName}`,
+                `Telefon: ${clientPhone}`,
+                `Lokacija: ${clientLocation}`,
+                `Namena: ${namena}`
+            ];
+            clientInfo.forEach(line => {
+                doc.text(line, margin, y);
+                y += 6;
+            });
+            y += 4;
+
+            // Pergolas
+            if (pergolas.length > 0) {
+                checkPage(40);
+                doc.setFillColor(26, 26, 46);
+                doc.rect(margin, y - 4, contentWidth, 8, 'F');
+                doc.setTextColor(212, 165, 116);
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.text('PERGOLE', margin + 4, y + 1);
+                y += 10;
+
+                // Table header
+                doc.setFillColor(240, 240, 240);
+                doc.rect(margin, y - 4, contentWidth, 7, 'F');
+                doc.setTextColor(80, 80, 80);
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'bold');
+                doc.text('#', margin + 2, y);
+                doc.text('Tip', margin + 12, y);
+                doc.text('Dimenzije', margin + 60, y);
+                doc.text('m2', margin + 105, y);
+                doc.text('Strane', margin + 120, y);
+                doc.text('Cena', margin + contentWidth - 5, y, { align: 'right' });
+                y += 6;
+
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
+                doc.setTextColor(50, 50, 50);
+
+                pergolas.forEach((p, idx) => {
+                    checkPage(12);
+                    const mount = pdfSafe(document.querySelector(`input[name="p-mount-${p.id}"]:checked`)?.value || '—');
+                    const w = document.getElementById(`p-width-${p.id}`)?.value || '0';
+                    const d = document.getElementById(`p-depth-${p.id}`)?.value || '0';
+                    const area = ((parseFloat(w) * parseFloat(d)) / 10000).toFixed(2);
+                    const type = pdfSafe(document.querySelector(`input[name="p-type-${p.id}"]:checked`)?.value || '—');
+                    const sides = document.getElementById(`p-sides-${p.id}`)?.value || '0';
+                    const totalP = document.getElementById(`p-total-${p.id}`)?.value || '0.00';
+
+                    doc.text(`${idx + 1}`, margin + 2, y);
+                    doc.text(`${type}`, margin + 12, y);
+                    doc.setFontSize(7);
+                    doc.setTextColor(130, 130, 130);
+                    doc.text(`(${mount})`, margin + 12, y + 4);
+                    doc.setFontSize(9);
+                    doc.setTextColor(50, 50, 50);
+                    doc.text(`${w} x ${d} cm`, margin + 60, y);
+                    doc.text(`${area}`, margin + 105, y);
+                    doc.text(`${sides}`, margin + 122, y);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(`${totalP} EUR`, margin + contentWidth - 5, y, { align: 'right' });
+                    doc.setFont('helvetica', 'normal');
+                    y += 10;
+
+                    doc.setDrawColor(230, 230, 230);
+                    doc.setLineWidth(0.2);
+                    doc.line(margin, y - 3, pageWidth - margin, y - 3);
+                });
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(10);
+                doc.text(`Pergole ukupno: ${pergolaTotal.toFixed(2)} EUR`, pageWidth - margin, y, { align: 'right' });
+                y += 8;
+
+                // Pergola info notes
+                checkPage(16);
+                doc.setFillColor(248, 245, 240);
+                doc.rect(margin, y - 3, contentWidth, 14, 'F');
+                doc.setFontSize(7.5);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text('U cenu je ukljuceno: motor, automatika i LED rasveta.', margin + 3, y + 1);
+                doc.text('Montaza i transport do gradilista su uracunati.', margin + 3, y + 6);
+                y += 16;
+            }
+
+            // Glass
+            if (glasses.length > 0) {
+                checkPage(40);
+                doc.setFillColor(26, 26, 46);
+                doc.rect(margin, y - 4, contentWidth, 8, 'F');
+                doc.setTextColor(212, 165, 116);
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.text('STAKLENI SISTEMI', margin + 4, y + 1);
+                y += 10;
+
+                // Table header
+                doc.setFillColor(240, 240, 240);
+                doc.rect(margin, y - 4, contentWidth, 7, 'F');
+                doc.setTextColor(80, 80, 80);
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'bold');
+                doc.text('#', margin + 2, y);
+                doc.text('Tip', margin + 12, y);
+                doc.text('Dimenzije', margin + 60, y);
+                doc.text('m2', margin + 105, y);
+                doc.text('Polja', margin + 120, y);
+                doc.text('Cena', margin + contentWidth - 5, y, { align: 'right' });
+                y += 6;
+
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
+                doc.setTextColor(50, 50, 50);
+
+                glasses.forEach((g, idx) => {
+                    checkPage(12);
+                    const mount = pdfSafe(document.querySelector(`input[name="g-mount-${g.id}"]:checked`)?.value || '—');
+                    const w = document.getElementById(`g-width-${g.id}`)?.value || '0';
+                    const h = document.getElementById(`g-height-${g.id}`)?.value || '0';
+                    const fields = document.getElementById(`g-fields-${g.id}`)?.value || '1';
+                    const area = document.getElementById(`g-area-${g.id}`)?.textContent || '0.00';
+                    const type = pdfSafe(document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '—');
+                    const totalG = document.getElementById(`g-total-${g.id}`)?.value || '0.00';
+
+                    doc.text(`${idx + 1}`, margin + 2, y);
+                    doc.text(`${type}`, margin + 12, y);
+                    doc.setFontSize(7);
+                    doc.setTextColor(130, 130, 130);
+                    doc.text(`(${mount})`, margin + 12, y + 4);
+                    doc.setFontSize(9);
+                    doc.setTextColor(50, 50, 50);
+                    doc.text(`${w} x ${h} cm`, margin + 60, y);
+                    doc.text(`${area}`, margin + 105, y);
+                    doc.text(`${fields}`, margin + 122, y);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(`${totalG} EUR`, margin + contentWidth - 5, y, { align: 'right' });
+                    doc.setFont('helvetica', 'normal');
+                    y += 10;
+
+                    doc.setDrawColor(230, 230, 230);
+                    doc.setLineWidth(0.2);
+                    doc.line(margin, y - 3, pageWidth - margin, y - 3);
+                });
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(10);
+                doc.text(`Staklo ukupno: ${glassTotal.toFixed(2)} EUR`, pageWidth - margin, y, { align: 'right' });
+                y += 8;
+
+                // Glass info notes
+                const glassNoteLines = [];
+                let pdfHasSlajding = false, pdfHasGiljotina = false;
+                glasses.forEach(g => {
+                    const gtype = document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '';
+                    if (gtype === 'Slajding') pdfHasSlajding = true;
+                    if (gtype === 'Giljotina') pdfHasGiljotina = true;
+                });
+                if (pdfHasSlajding && pdfHasGiljotina) {
+                    glassNoteLines.push('Slajding i giljotina sistemi: duplo staklo 4+14+4mm.');
+                    glassNoteLines.push('Giljotina sistemi: motor ukljucen u cenu.');
+                } else if (pdfHasSlajding) {
+                    glassNoteLines.push('Slajding sistem: duplo staklo 4+14+4mm.');
+                } else if (pdfHasGiljotina) {
+                    glassNoteLines.push('Giljotina sistem: duplo staklo 4+14+4mm, motor ukljucen u cenu.');
+                }
+                glassNoteLines.push('Montaza i transport do gradilista su uracunati.');
+
+                checkPage(6 + glassNoteLines.length * 5);
+                doc.setFillColor(248, 245, 240);
+                doc.rect(margin, y - 3, contentWidth, 4 + glassNoteLines.length * 5, 'F');
+                doc.setFontSize(7.5);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                glassNoteLines.forEach((line, li) => {
+                    doc.text(line, margin + 3, y + 1 + li * 5);
+                });
+                y += 6 + glassNoteLines.length * 5;
+            }
+
+            // Totals
+            checkPage(40);
+            drawLine(y);
+            y += 8;
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(80, 80, 80);
+            doc.text('Medjuzbir:', margin, y);
+            doc.text(`${subtotal.toFixed(2)} EUR`, pageWidth - margin, y, { align: 'right' });
+            y += 7;
+
+            if (discount > 0) {
+                const discLabel = discType === 'percent' ? `${discVal}%` : `${discVal} EUR`;
+                doc.setTextColor(231, 76, 60);
+                doc.text(`Popust (${discLabel}):`, margin, y);
+                doc.text(`-${discount.toFixed(2)} EUR`, pageWidth - margin, y, { align: 'right' });
+                y += 7;
+            }
+
+            drawLine(y);
+            y += 8;
+
+            doc.setFillColor(26, 26, 46);
+            doc.rect(margin, y - 6, contentWidth, 12, 'F');
+            doc.setTextColor(212, 165, 116);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('UKUPNO:', margin + 4, y + 2);
+            doc.text(`${total.toFixed(2)} EUR`, pageWidth - margin - 4, y + 2, { align: 'right' });
+            y += 16;
+
+            // Rok & napomena
+            if (rok !== '—') {
+                doc.setTextColor(50, 50, 50);
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Rok realizacije:', margin, y);
+                doc.setFont('helvetica', 'normal');
+                doc.text(pdfSafe(rok), margin + 40, y);
+                y += 7;
+            }
+
+            if (napomena) {
+                checkPage(20);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Napomena:', margin, y);
+                doc.setFont('helvetica', 'normal');
+                const splitNapomena = doc.splitTextToSize(pdfSafe(napomena), contentWidth - 30);
+                doc.text(splitNapomena, margin + 28, y);
+                y += splitNapomena.length * 5 + 5;
+            }
+
+            // Footer
+            y = Math.max(y + 10, 260);
+            checkPage(20);
+            doc.setDrawColor(212, 165, 116);
+            doc.setLineWidth(0.5);
+            doc.line(margin, y, pageWidth - margin, y);
+            y += 6;
+            doc.setFontSize(8);
+            doc.setTextColor(130, 130, 130);
+            doc.setFont('helvetica', 'normal');
+            doc.text('PROHORECA AG GROUP | Tel: 0648979242 - Aleksandar', pageWidth / 2, y, { align: 'center' });
+            y += 4;
+            doc.text('Ponuda vazi 7 dana od datuma izdavanja.', pageWidth / 2, y, { align: 'center' });
+
+            // Save
+            const filename = `Ponuda_${clientName.replace(/\s+/g, '_')}_${formattedDate.replace(/\./g, '')}.pdf`;
+            doc.save(filename);
+            showToast('PDF preuzet!');
+        }
+
+        // ===== COPY TEXT =====
+        function copyText() {
+            const clientName = document.getElementById('client-name').value || '—';
+            const clientPhone = document.getElementById('client-phone').value || '—';
+            const clientLocation = document.getElementById('client-location').value || '—';
+            const namena = document.querySelector('input[name="namena"]:checked')?.value || '—';
+            const offerDate = document.getElementById('offer-date').value || '—';
+            const rok = document.getElementById('rok-realizacije').value || '—';
+            const napomena = document.getElementById('napomena').value || '';
+
+            let formattedDate = offerDate;
+            if (offerDate && offerDate !== '—') {
+                const d = new Date(offerDate);
+                formattedDate = `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}.`;
+            }
+
+            const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
+            const glassTotal = parseFloat(document.getElementById('glass-grand-total').textContent) || 0;
+            const subtotal = pergolaTotal + glassTotal;
+            const discType = document.getElementById('discount-type').value;
+            const discVal = parseFloat(document.getElementById('discount-value').value) || 0;
+            let discount = 0;
+            if (discVal > 0) discount = discType === 'percent' ? subtotal * (discVal / 100) : discVal;
+            const total = Math.max(0, subtotal - discount);
+
+            let text = `*PROHORECA AG GROUP*\n`;
+            text += `Ponuda - ${formattedDate}\n`;
+            text += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+            text += `*Klijent:* ${clientName}\n`;
+            text += `*Tel:* ${clientPhone}\n`;
+            text += `*Lokacija:* ${clientLocation}\n`;
+            text += `*Namena:* ${namena}\n\n`;
+
+            if (pergolas.length > 0) {
+                text += `━━ *PERGOLE* ━━\n`;
+                pergolas.forEach((p, idx) => {
+                    const mount = document.querySelector(`input[name="p-mount-${p.id}"]:checked`)?.value || '—';
+                    const w = document.getElementById(`p-width-${p.id}`)?.value || '0';
+                    const d = document.getElementById(`p-depth-${p.id}`)?.value || '0';
+                    const area = ((parseFloat(w) * parseFloat(d)) / 10000).toFixed(2);
+                    const type = document.querySelector(`input[name="p-type-${p.id}"]:checked`)?.value || '—';
+                    const sides = document.getElementById(`p-sides-${p.id}`)?.value || '0';
+                    const totalP = document.getElementById(`p-total-${p.id}`)?.value || '0.00';
+                    text += `\n${idx + 1}. ${type} (${mount})\n`;
+                    text += `   ${w}×${d} cm = ${area} m²\n`;
+                    text += `   Zatvaranje: ${sides} strana\n`;
+                    text += `   *Cena: ${totalP} EUR*\n`;
+                });
+                text += `\n*Pergole ukupno: ${pergolaTotal.toFixed(2)} EUR*\n`;
+                text += `U cenu: motor, automatika, LED rasveta, montaža i transport.\n\n`;
+            }
+
+            if (glasses.length > 0) {
+                text += `━━ *STAKLENI SISTEMI* ━━\n`;
+                glasses.forEach((g, idx) => {
+                    const mount = document.querySelector(`input[name="g-mount-${g.id}"]:checked`)?.value || '—';
+                    const w = document.getElementById(`g-width-${g.id}`)?.value || '0';
+                    const h = document.getElementById(`g-height-${g.id}`)?.value || '0';
+                    const fields = document.getElementById(`g-fields-${g.id}`)?.value || '1';
+                    const area = document.getElementById(`g-area-${g.id}`)?.textContent || '0.00';
+                    const type = document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '—';
+                    const totalG = document.getElementById(`g-total-${g.id}`)?.value || '0.00';
+                    text += `\n${idx + 1}. ${type} (${mount})\n`;
+                    text += `   ${w}×${h} cm, ${fields} polja = ${area} m²\n`;
+                    text += `   *Cena: ${totalG} EUR*\n`;
+                });
+                text += `\n*Staklo ukupno: ${glassTotal.toFixed(2)} EUR*\n`;
+                // Glass notes for WhatsApp
+                let txtHasSlajding = false, txtHasGiljotina = false;
+                glasses.forEach(g => {
+                    const gt = document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '';
+                    if (gt === 'Slajding') txtHasSlajding = true;
+                    if (gt === 'Giljotina') txtHasGiljotina = true;
+                });
+                if (txtHasSlajding && txtHasGiljotina) {
+                    text += `Slajding i giljotina: duplo staklo 4+14+4mm.\n`;
+                    text += `Giljotina: motor uključen u cenu.\n`;
+                } else if (txtHasSlajding) {
+                    text += `Slajding: duplo staklo 4+14+4mm.\n`;
+                } else if (txtHasGiljotina) {
+                    text += `Giljotina: duplo staklo 4+14+4mm, motor uključen.\n`;
+                }
+                text += `Montaža i transport uračunati.\n\n`;
+            }
+
+            text += `━━━━━━━━━━━━━━━━━━━━\n`;
+            text += `Međuzbir: ${subtotal.toFixed(2)} EUR\n`;
+            if (discount > 0) {
+                const discLabel = discType === 'percent' ? `${discVal}%` : `${discVal} EUR`;
+                text += `Popust (${discLabel}): -${discount.toFixed(2)} EUR\n`;
+            }
+            text += `\n*UKUPNO: ${total.toFixed(2)} EUR*\n\n`;
+            if (rok !== '—') text += `Rok realizacije: ${rok}\n`;
+            if (napomena) text += `Napomena: ${napomena}\n`;
+            text += `\nPonuda važi 7 dana.\n`;
+            text += `PROHORECA AG GROUP\nTel: 0648979242 - Aleksandar`;
+
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Tekst kopiran!');
+            }).catch(() => {
+                // Fallback
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('Tekst kopiran!');
+            });
+        }
+
+        // ===== EMAIL =====
+        function showEmailOverlay() {
+            document.getElementById('email-overlay').classList.add('show');
+        }
+
+        function hideEmailOverlay() {
+            document.getElementById('email-overlay').classList.remove('show');
+        }
+
+        function sendEmail() {
+            const emailTo = document.getElementById('email-to').value;
+            if (!emailTo) {
+                showToast('Unesite email adresu');
+                return;
+            }
+
+            const clientName = document.getElementById('client-name').value || 'Klijent';
+            const offerDate = document.getElementById('offer-date').value || '';
+            const subject = `Ponuda - PROHORECA AG GROUP - ${clientName}`;
+
+            // Get text version for email body
+            const previewBox = document.getElementById('preview-box');
+            const body = previewBox?.innerText || 'Ponuda u prilogu';
+
+            const mailtoLink = `mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            window.location.href = mailtoLink;
+            hideEmailOverlay();
+            showToast('Email klijent otvoren');
+        }
+
+        // ===== RESET =====
+        function resetAll() {
+            if (!confirm('Da li ste sigurni da želite novu ponudu? Svi podaci će biti obrisani.')) return;
+            document.getElementById('client-name').value = '';
+            document.getElementById('client-phone').value = '';
+            document.getElementById('client-location').value = '';
+            document.getElementById('offer-date').value = new Date().toISOString().split('T')[0];
+            document.querySelector('#namena-privatno').checked = true;
+            document.getElementById('discount-value').value = '';
+            document.getElementById('rok-realizacije').value = '';
+            document.getElementById('napomena').value = '';
+            pergolas = [];
+            glasses = [];
+            pergolaIdCounter = 0;
+            glassIdCounter = 0;
+            renderPergolas();
+            renderGlasses();
+            calcAllPergolas();
+            calcAllGlasses();
+            calcSummary();
+            document.getElementById('preview-container').style.display = 'none';
+            switchTab('klijent');
+            showToast('Nova ponuda spremna');
+        }
+
+        // ===== HELPERS =====
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        function saveState() {
+            // placeholder for future persistence
+        }
+
+        function savePriceLS(key, val) {
+            if (val) localStorage.setItem(key, val);
+        }
+
+        function loadSavedPrices() {
+            // Prices are loaded when items are added
+        }
+    </script>
+</body>
+</html>
