@@ -839,6 +839,49 @@
             color: white;
         }
 
+        /* Archive search */
+        .archive-search-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .archive-search-row input {
+            flex: 1;
+            padding: 10px 14px;
+            background: var(--bg-input);
+            border: 1px solid rgba(212, 165, 116, 0.2);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 15px;
+        }
+        .archive-search-row input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .archive-io-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .btn-io {
+            flex: 1;
+            padding: 9px 8px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            background: rgba(212, 165, 116, 0.08);
+            border: 1px solid rgba(212, 165, 116, 0.25);
+            color: var(--accent);
+        }
+
+        @media (max-width: 480px) {
+            .form-row-3 {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
         /* Archive view modal */
         .arc-modal {
             display: none;
@@ -1097,10 +1140,17 @@
             </div>
         </div>
 
+        <div class="archive-search-row">
+            <input type="text" id="archive-search" placeholder="Pretraži po imenu, lokaciji, broju..." oninput="renderArchive()">
+        </div>
         <div class="archive-filter">
             <button class="filter-btn active" onclick="setArchiveFilter('sve')" id="filter-sve">Sve</button>
             <button class="filter-btn" onclick="setArchiveFilter('nije')" id="filter-nije">⏳ Nije poslato</button>
             <button class="filter-btn" onclick="setArchiveFilter('poslato')" id="filter-poslato">✓ Poslato</button>
+        </div>
+        <div class="archive-io-row">
+            <button class="btn-io" onclick="exportArchive()">↓ Izvezi arhivu (JSON)</button>
+            <button class="btn-io" onclick="importArchive()">↑ Uvezi arhivu</button>
         </div>
 
         <div id="archive-list"></div>
@@ -1122,6 +1172,9 @@
             <button class="btn-arc-action"
                 style="background:rgba(212,165,116,0.15);border:1px solid rgba(212,165,116,0.4);color:var(--accent);"
                 onclick="copyArchiveText()">❐ Kopiraj</button>
+            <button class="btn-arc-action"
+                style="background:rgba(76,175,80,0.10);border:1px solid rgba(76,175,80,0.35);color:#4caf50;"
+                onclick="loadOfferFromArchive()">✎ Učitaj u formu</button>
         </div>
     </div>
 
@@ -1150,6 +1203,12 @@
     </script>
 
     <script>
+        // ===== CONSTANTS =====
+        const COMPANY_NAME   = 'PROHORECA AG GROUP';
+        const CONTACT_PHONE  = '0648979242';
+        const CONTACT_NAME   = 'Aleksandar';
+        const OFFER_VALID_DAYS = 7;
+
         // ===== STATE =====
         let pergolas = [];
         let glasses = [];
@@ -1158,12 +1217,75 @@
         let currentOfferBroj = null;
         let archiveFilter = 'sve';
 
+        // ===== SECURITY =====
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // ===== OFFER NUMBERING =====
+        function getNextOfferNumber() {
+            const year = new Date().getFullYear();
+            const key = `offer_counter_${year}`;
+            const counter = parseInt(localStorage.getItem(key) || '0') + 1;
+            localStorage.setItem(key, counter.toString());
+            return `PON-${year}-${counter.toString().padStart(3, '0')}`;
+        }
+
         // ===== INIT =====
         document.addEventListener('DOMContentLoaded', () => {
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('offer-date').value = today;
-            loadSavedPrices();
+            loadState();
         });
+
+        // ===== AUTO-SAVE STATE =====
+        function saveState() {
+            const state = {
+                clientName:     document.getElementById('client-name').value,
+                clientPhone:    document.getElementById('client-phone').value,
+                clientLocation: document.getElementById('client-location').value,
+                namena:         document.querySelector('input[name="namena"]:checked')?.value || 'Privatno',
+                offerDate:      document.getElementById('offer-date').value,
+                discountType:   document.getElementById('discount-type').value,
+                discountValue:  document.getElementById('discount-value').value,
+                rok:            document.getElementById('rok-realizacije').value,
+                napomena:       document.getElementById('napomena').value,
+                pergolas, glasses, pergolaIdCounter, glassIdCounter,
+                currentOfferBroj
+            };
+            localStorage.setItem('ag_current_state', JSON.stringify(state));
+        }
+
+        function loadState() {
+            try {
+                const raw = localStorage.getItem('ag_current_state');
+                if (!raw) return;
+                const s = JSON.parse(raw);
+                document.getElementById('client-name').value     = s.clientName     || '';
+                document.getElementById('client-phone').value    = s.clientPhone    || '';
+                document.getElementById('client-location').value = s.clientLocation || '';
+                document.getElementById('offer-date').value      = s.offerDate      || new Date().toISOString().split('T')[0];
+                document.getElementById('discount-value').value  = s.discountValue  || '';
+                document.getElementById('rok-realizacije').value = s.rok            || '';
+                document.getElementById('napomena').value        = s.napomena       || '';
+                const namenaEl = document.querySelector(`input[name="namena"][value="${s.namena}"]`);
+                if (namenaEl) namenaEl.checked = true;
+                document.getElementById('discount-type').value = s.discountType || 'percent';
+                pergolas          = s.pergolas          || [];
+                glasses           = s.glasses           || [];
+                pergolaIdCounter  = s.pergolaIdCounter  || 0;
+                glassIdCounter    = s.glassIdCounter    || 0;
+                currentOfferBroj  = s.currentOfferBroj  || null;
+                renderPergolas();
+                renderGlasses();
+                calcAllPergolas();
+                calcAllGlasses();
+                calcSummary();
+            } catch(e) { console.error('loadState:', e); }
+        }
 
         // ===== TABS =====
         function switchTab(name) {
@@ -1181,994 +1303,757 @@
             window.scrollTo(0, 0);
         }
 
+        // ===== SERBIAN GRAMMAR =====
+        function srPergola(n) {
+            if (n === 1) return '1 pergola';
+            if (n >= 2 && n <= 4) return `${n} pergole`;
+            return `${n} pergola`;
+        }
+        function srSistem(n) {
+            if (n === 1) return '1 sistem';
+            if (n >= 2 && n <= 4) return `${n} sistema`;
+            return `${n} sistema`;
+        }
+
+        // ===== PERGOLA STATE UPDATE =====
+        function updatePergola(id, field, value) {
+            const p = pergolas.find(p => p.id === id);
+            if (!p) return;
+            p[field] = value;
+            p.manualTotal = false;
+            calcPergolaItem(id);
+            saveState();
+        }
+        function updatePergolaManualPrice(id) {
+            const p = pergolas.find(p => p.id === id);
+            if (!p) return;
+            p.total = parseFloat(document.getElementById(`p-total-${id}`)?.value) || 0;
+            p.manualTotal = true;
+            calcAllPergolas();
+            saveState();
+        }
+
         // ===== PERGOLA =====
         function addPergola() {
             const id = ++pergolaIdCounter;
-            const savedPergolaPrice = localStorage.getItem('price_pergola_m2') || '';
-            const savedClosePrice = localStorage.getItem('price_close_m2') || '';
-            pergolas.push({ id });
+            pergolas.push({
+                id,
+                montaza:    'Naslonjena na objekat',
+                sirina:     '',
+                dubina:     '',
+                visina:     '250',
+                tip:        'Ceradno platno',
+                strane:     '0',
+                cenaM2:     localStorage.getItem('price_pergola_m2') || '',
+                cenaZatvM2: localStorage.getItem('price_close_m2')   || '',
+                total:      0,
+                manualTotal: false
+            });
             renderPergolas();
-            // Set saved prices
-            const priceInput = document.getElementById(`p-price-${id}`);
-            const closePriceInput = document.getElementById(`p-close-price-${id}`);
-            if (priceInput && savedPergolaPrice) priceInput.value = savedPergolaPrice;
-            if (closePriceInput && savedClosePrice) closePriceInput.value = savedClosePrice;
             calcPergolaItem(id);
+            saveState();
         }
 
         function removePergola(id) {
             pergolas = pergolas.filter(p => p.id !== id);
             renderPergolas();
             calcAllPergolas();
+            saveState();
         }
 
         function renderPergolas() {
             const container = document.getElementById('pergola-container');
             container.innerHTML = '';
             pergolas.forEach((p, idx) => {
+                const id = p.id;
                 const card = document.createElement('div');
                 card.className = 'card';
-                card.id = `pergola-card-${p.id}`;
+                card.id = `pergola-card-${id}`;
+                const sel = v => (s, opt) => s === opt ? 'selected' : '';
+                const chk = (a, b) => a === b ? 'checked' : '';
                 card.innerHTML = `
                     <div class="card-header">
                         <span class="card-title">Pergola ${idx + 1}</span>
-                        <button class="card-remove" onclick="removePergola(${p.id})">×</button>
+                        <button class="card-remove" onclick="removePergola(${id})">×</button>
                     </div>
                     <div class="form-group">
                         <label>Način montaže</label>
                         <div class="radio-group">
                             <div class="radio-option">
-                                <input type="radio" id="p-mount-sam-${p.id}" name="p-mount-${p.id}" value="Samostojeća" checked onchange="saveState()">
-                                <label for="p-mount-sam-${p.id}">Samostojeća</label>
+                                <input type="radio" id="p-mount-nas-${id}" name="p-mount-${id}" value="Naslonjena na objekat" ${chk(p.montaza,'Naslonjena na objekat')} onchange="updatePergola(${id},'montaza',this.value)">
+                                <label for="p-mount-nas-${id}">Naslonjena</label>
                             </div>
                             <div class="radio-option">
-                                <input type="radio" id="p-mount-nas-${p.id}" name="p-mount-${p.id}" value="Naslonjena na objekat" onchange="saveState()">
-                                <label for="p-mount-nas-${p.id}">Naslonjena</label>
+                                <input type="radio" id="p-mount-sam-${id}" name="p-mount-${id}" value="Samostojeća" ${chk(p.montaza,'Samostojeća')} onchange="updatePergola(${id},'montaza',this.value)">
+                                <label for="p-mount-sam-${id}">Samostojeća</label>
                             </div>
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label>Širina (cm)</label>
-                            <input type="number" id="p-width-${p.id}" placeholder="cm" min="0" oninput="calcPergolaItem(${p.id})">
+                            <input type="number" id="p-width-${id}" placeholder="cm" min="0" value="${p.sirina}" oninput="updatePergola(${id},'sirina',this.value)">
                         </div>
                         <div class="form-group">
                             <label>Dubina (cm)</label>
-                            <input type="number" id="p-depth-${p.id}" placeholder="cm" min="0" oninput="calcPergolaItem(${p.id})">
+                            <input type="number" id="p-depth-${id}" placeholder="cm" min="0" value="${p.dubina}" oninput="updatePergola(${id},'dubina',this.value)">
                         </div>
                     </div>
                     <div class="calc-display">
                         <div class="label">Kvadratura</div>
-                        <div class="value"><span id="p-area-${p.id}">0.00</span> <span class="unit">m²</span></div>
+                        <div class="value"><span id="p-area-${id}">0.00</span> <span class="unit">m²</span></div>
                     </div>
                     <div class="form-group">
                         <label>Tip pergole</label>
                         <div class="radio-group">
                             <div class="radio-option">
-                                <input type="radio" id="p-type-bio-${p.id}" name="p-type-${p.id}" value="Bioklimatska" checked onchange="saveState()">
-                                <label for="p-type-bio-${p.id}">Bioklimatska</label>
+                                <input type="radio" id="p-type-cer-${id}" name="p-type-${id}" value="Ceradno platno" ${chk(p.tip,'Ceradno platno')} onchange="updatePergola(${id},'tip',this.value)">
+                                <label for="p-type-cer-${id}">Ceradno platno</label>
                             </div>
                             <div class="radio-option">
-                                <input type="radio" id="p-type-cer-${p.id}" name="p-type-${p.id}" value="Ceradno platno" onchange="saveState()">
-                                <label for="p-type-cer-${p.id}">Ceradno platno</label>
+                                <input type="radio" id="p-type-bio-${id}" name="p-type-${id}" value="Bioklimatska" ${chk(p.tip,'Bioklimatska')} onchange="updatePergola(${id},'tip',this.value)">
+                                <label for="p-type-bio-${id}">Bioklimatska</label>
                             </div>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label>Zatvaranje strana</label>
-                        <select id="p-sides-${p.id}" onchange="calcPergolaItem(${p.id})">
-                            <option value="0">0 strana</option>
-                            <option value="1">1 strana</option>
-                            <option value="2">2 strane</option>
-                            <option value="3">3 strane</option>
-                            <option value="4">4 strane</option>
-                        </select>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Zatvaranje strana</label>
+                            <select id="p-sides-${id}" onchange="updatePergola(${id},'strane',this.value)">
+                                <option value="0" ${chk(p.strane,'0')}>0 strana</option>
+                                <option value="1" ${chk(p.strane,'1')}>1 strana</option>
+                                <option value="2" ${chk(p.strane,'2')}>2 strane</option>
+                                <option value="3" ${chk(p.strane,'3')}>3 strane</option>
+                                <option value="4" ${chk(p.strane,'4')}>4 strane</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Visina strana (cm)</label>
+                            <input type="number" id="p-height-${id}" placeholder="250" min="0" value="${p.visina}" oninput="updatePergola(${id},'visina',this.value)">
+                        </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label>Cena pergole (€/m²)</label>
-                            <input type="number" id="p-price-${p.id}" placeholder="EUR/m²" min="0" step="0.01" oninput="calcPergolaItem(${p.id}); savePriceLS('price_pergola_m2', this.value)">
+                            <input type="number" id="p-price-${id}" placeholder="EUR/m²" min="0" step="0.01" value="${p.cenaM2}" oninput="updatePergola(${id},'cenaM2',this.value); savePriceLS('price_pergola_m2',this.value)">
                         </div>
                         <div class="form-group">
                             <label>Cena zatv. (€/m²)</label>
-                            <input type="number" id="p-close-price-${p.id}" placeholder="EUR/m²" min="0" step="0.01" oninput="calcPergolaItem(${p.id}); savePriceLS('price_close_m2', this.value)">
+                            <input type="number" id="p-close-price-${id}" placeholder="EUR/m²" min="0" step="0.01" value="${p.cenaZatvM2}" oninput="updatePergola(${id},'cenaZatvM2',this.value); savePriceLS('price_close_m2',this.value)">
                         </div>
                     </div>
                     <div class="calc-row">
                         <div class="calc-display">
                             <div class="label">Cena pergole</div>
-                            <div class="value" style="font-size:18px;"><span id="p-subtotal-${p.id}">0.00</span> <span class="unit">€</span></div>
+                            <div class="value" style="font-size:18px;"><span id="p-subtotal-${id}">0.00</span> <span class="unit">€</span></div>
                         </div>
                         <div class="calc-display">
                             <div class="label">Cena zatvaranja</div>
-                            <div class="value" style="font-size:18px;"><span id="p-close-subtotal-${p.id}">0.00</span> <span class="unit">€</span></div>
+                            <div class="value" style="font-size:18px;"><span id="p-close-subtotal-${id}">0.00</span> <span class="unit">€</span></div>
                         </div>
                     </div>
                     <div class="price-box" style="margin-top:8px;">
                         <div class="label">Ukupno ova pergola (klikni da koriguj.)</div>
                         <div class="price" style="font-size:22px;">
-                            <input type="number" id="p-total-${p.id}" class="editable-price" value="0.00" min="0" step="1" oninput="onManualPergolaPrice(${p.id})">
+                            <input type="number" id="p-total-${id}" class="editable-price" value="${p.total.toFixed(2)}" min="0" step="1" oninput="updatePergolaManualPrice(${id})">
                             <span class="currency">EUR</span>
                         </div>
                     </div>
                 `;
                 container.appendChild(card);
+                calcPergolaItem(id);
             });
-            document.getElementById('pergola-count-badge').textContent = pergolas.length + (pergolas.length === 1 ? ' pergola' : ' pergola');
+            document.getElementById('pergola-count-badge').textContent = srPergola(pergolas.length);
         }
 
         function calcPergolaItem(id) {
-            const w = parseFloat(document.getElementById(`p-width-${id}`)?.value) || 0;
-            const d = parseFloat(document.getElementById(`p-depth-${id}`)?.value) || 0;
-            const area = (w * d) / 10000;
-            const sides = parseInt(document.getElementById(`p-sides-${id}`)?.value) || 0;
-            const priceM2 = parseFloat(document.getElementById(`p-price-${id}`)?.value) || 0;
-            const closePriceM2 = parseFloat(document.getElementById(`p-close-price-${id}`)?.value) || 0;
+            const p = pergolas.find(p => p.id === id);
+            if (!p) return;
+            const w        = parseFloat(p.sirina)     || 0;
+            const d        = parseFloat(p.dubina)     || 0;
+            const heightCm = parseFloat(p.visina)     || 250;
+            const sides    = parseInt(p.strane)       || 0;
+            const priceM2  = parseFloat(p.cenaM2)     || 0;
+            const closePM2 = parseFloat(p.cenaZatvM2) || 0;
 
-            // Approximate side closing area: assume height=250cm, use width & depth for perimeter
-            // Side area calculation: we estimate side panels based on pergola dimensions
-            const heightCm = 250; // default assumed height for sides
+            const area = (w * d) / 10000;
             let sideArea = 0;
             if (sides > 0) {
-                // Calculate perimeter sides: 2 x width + 2 x depth sides available
                 const sideLengths = [];
                 if (w > 0) sideLengths.push(w, w);
                 if (d > 0) sideLengths.push(d, d);
-                // Take first N sides from available
                 for (let i = 0; i < Math.min(sides, sideLengths.length); i++) {
                     sideArea += (sideLengths[i] * heightCm) / 10000;
                 }
             }
-
             const pergolaPrice = area * priceM2;
-            const closePrice = sideArea * closePriceM2;
-            const total = pergolaPrice + closePrice;
+            const closePrice   = sideArea * closePM2;
 
-            if (document.getElementById(`p-area-${id}`)) {
-                document.getElementById(`p-area-${id}`).textContent = area.toFixed(2);
-                document.getElementById(`p-subtotal-${id}`).textContent = pergolaPrice.toFixed(2);
+            if (!p.manualTotal) {
+                p.total = pergolaPrice + closePrice;
+            }
+
+            const areaEl = document.getElementById(`p-area-${id}`);
+            if (areaEl) {
+                areaEl.textContent = area.toFixed(2);
+                document.getElementById(`p-subtotal-${id}`).textContent       = pergolaPrice.toFixed(2);
                 document.getElementById(`p-close-subtotal-${id}`).textContent = closePrice.toFixed(2);
-                document.getElementById(`p-total-${id}`).value = total.toFixed(2);
+                document.getElementById(`p-total-${id}`).value                = p.total.toFixed(2);
             }
-
             calcAllPergolas();
-        }
-
-        function getGlassInfoNotes() {
-            let hasSlajding = false;
-            let hasGiljotina = false;
-            glasses.forEach(g => {
-                const type = document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '';
-                if (type === 'Slajding') hasSlajding = true;
-                if (type === 'Giljotina') hasGiljotina = true;
-            });
-            let notes = '';
-            if (hasSlajding && hasGiljotina) {
-                notes = 'Slajding i giljotina sistemi: duplo staklo 4+14+4mm.<br>Giljotina sistemi: motor uključen u cenu.<br>';
-            } else if (hasSlajding) {
-                notes = 'Slajding sistem: duplo staklo 4+14+4mm.<br>';
-            } else if (hasGiljotina) {
-                notes = 'Giljotina sistem: duplo staklo 4+14+4mm, motor uključen u cenu.<br>';
-            }
-            return notes;
-        }
-
-        function onManualPergolaPrice(id) {
-            // User manually edited the total - just recalculate grand total
-            calcAllPergolas();
-        }
-
-        function onManualGlassPrice(id) {
-            // User manually edited the total - just recalculate grand total
-            calcAllGlasses();
         }
 
         function calcAllPergolas() {
-            let grand = 0;
-            pergolas.forEach(p => {
-                const el = document.getElementById(`p-total-${p.id}`);
-                if (el) grand += parseFloat(el.value) || 0;
-            });
+            const grand = pergolas.reduce((s, p) => s + (p.total || 0), 0);
             document.getElementById('pergola-grand-total').textContent = grand.toFixed(2);
+        }
+
+        // ===== GLASS STATE UPDATE =====
+        function updateGlass(id, field, value) {
+            const g = glasses.find(g => g.id === id);
+            if (!g) return;
+            g[field] = value;
+            g.manualTotal = false;
+            calcGlassItem(id);
+            saveState();
+        }
+        function updateGlassManualPrice(id) {
+            const g = glasses.find(g => g.id === id);
+            if (!g) return;
+            g.total = parseFloat(document.getElementById(`g-total-${id}`)?.value) || 0;
+            g.manualTotal = true;
+            calcAllGlasses();
+            saveState();
         }
 
         // ===== GLASS =====
         function addGlass() {
             const id = ++glassIdCounter;
-            const savedGlassPrice = localStorage.getItem('price_glass_m2') || '';
-            glasses.push({ id });
+            glasses.push({
+                id,
+                montaza:     'Ispod pergole',
+                strane:      '1',
+                sirina:      '',
+                visina:      '',
+                polja:       '1',
+                tip:         'Slajding',
+                cenaM2:      localStorage.getItem('price_glass_m2') || '',
+                total:       0,
+                manualTotal: false
+            });
             renderGlasses();
-            const priceInput = document.getElementById(`g-price-${id}`);
-            if (priceInput && savedGlassPrice) priceInput.value = savedGlassPrice;
             calcGlassItem(id);
+            saveState();
         }
 
         function removeGlass(id) {
             glasses = glasses.filter(g => g.id !== id);
             renderGlasses();
             calcAllGlasses();
+            saveState();
         }
 
         function renderGlasses() {
             const container = document.getElementById('glass-container');
             container.innerHTML = '';
             glasses.forEach((g, idx) => {
+                const id = g.id;
                 const card = document.createElement('div');
                 card.className = 'card';
-                card.id = `glass-card-${g.id}`;
+                card.id = `glass-card-${id}`;
+                const chk = (a, b) => a === b ? 'checked' : '';
                 card.innerHTML = `
                     <div class="card-header">
                         <span class="card-title">Stakleni sistem ${idx + 1}</span>
-                        <button class="card-remove" onclick="removeGlass(${g.id})">×</button>
+                        <button class="card-remove" onclick="removeGlass(${id})">×</button>
                     </div>
                     <div class="form-group">
                         <label>Gde se montira</label>
                         <div class="radio-group">
                             <div class="radio-option">
-                                <input type="radio" id="g-mount-pergola-${g.id}" name="g-mount-${g.id}" value="Ispod pergole" checked onchange="saveState()">
-                                <label for="g-mount-pergola-${g.id}">Ispod pergole</label>
+                                <input type="radio" id="g-mount-pergola-${id}" name="g-mount-${id}" value="Ispod pergole" ${chk(g.montaza,'Ispod pergole')} onchange="updateGlass(${id},'montaza',this.value)">
+                                <label for="g-mount-pergola-${id}">Ispod pergole</label>
                             </div>
                             <div class="radio-option">
-                                <input type="radio" id="g-mount-fasada-${g.id}" name="g-mount-${g.id}" value="Fasada" onchange="saveState()">
-                                <label for="g-mount-fasada-${g.id}">Fasada</label>
+                                <input type="radio" id="g-mount-fasada-${id}" name="g-mount-${id}" value="Fasada" ${chk(g.montaza,'Fasada')} onchange="updateGlass(${id},'montaza',this.value)">
+                                <label for="g-mount-fasada-${id}">Fasada</label>
                             </div>
                             <div class="radio-option">
-                                <input type="radio" id="g-mount-solo-${g.id}" name="g-mount-${g.id}" value="Samostalno" onchange="saveState()">
-                                <label for="g-mount-solo-${g.id}">Samostalno</label>
+                                <input type="radio" id="g-mount-solo-${id}" name="g-mount-${id}" value="Samostalno" ${chk(g.montaza,'Samostalno')} onchange="updateGlass(${id},'montaza',this.value)">
+                                <label for="g-mount-solo-${id}">Samostalno</label>
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Broj strana za zatvaranje</label>
-                        <select id="g-sides-${g.id}" onchange="saveState()">
-                            <option value="1">1 strana</option>
-                            <option value="2">2 strane</option>
-                            <option value="3">3 strane</option>
-                            <option value="4">4 strane</option>
+                        <select id="g-sides-${id}" onchange="updateGlass(${id},'strane',this.value)">
+                            <option value="1" ${chk(g.strane,'1')}>1 strana</option>
+                            <option value="2" ${chk(g.strane,'2')}>2 strane</option>
+                            <option value="3" ${chk(g.strane,'3')}>3 strane</option>
+                            <option value="4" ${chk(g.strane,'4')}>4 strane</option>
                         </select>
                     </div>
                     <div class="form-row-3">
                         <div class="form-group">
                             <label>Širina (cm)</label>
-                            <input type="number" id="g-width-${g.id}" placeholder="cm" min="0" oninput="calcGlassItem(${g.id})">
+                            <input type="number" id="g-width-${id}" placeholder="cm" min="0" value="${g.sirina}" oninput="updateGlass(${id},'sirina',this.value)">
                         </div>
                         <div class="form-group">
                             <label>Visina (cm)</label>
-                            <input type="number" id="g-height-${g.id}" placeholder="cm" min="0" oninput="calcGlassItem(${g.id})">
+                            <input type="number" id="g-height-${id}" placeholder="cm" min="0" value="${g.visina}" oninput="updateGlass(${id},'visina',this.value)">
                         </div>
                         <div class="form-group">
                             <label>Br. polja</label>
-                            <input type="number" id="g-fields-${g.id}" placeholder="1" min="1" value="1" oninput="calcGlassItem(${g.id})">
+                            <input type="number" id="g-fields-${id}" placeholder="1" min="1" value="${g.polja}" oninput="updateGlass(${id},'polja',this.value)">
                         </div>
                     </div>
                     <div class="calc-display">
                         <div class="label">Kvadratura</div>
-                        <div class="value"><span id="g-area-${g.id}">0.00</span> <span class="unit">m²</span></div>
+                        <div class="value"><span id="g-area-${id}">0.00</span> <span class="unit">m²</span></div>
                     </div>
                     <div class="form-group">
                         <label>Tip stakla</label>
                         <div class="radio-group">
                             <div class="radio-option">
-                                <input type="radio" id="g-type-slajding-${g.id}" name="g-type-${g.id}" value="Slajding" checked onchange="saveState()">
-                                <label for="g-type-slajding-${g.id}">Slajding</label>
+                                <input type="radio" id="g-type-slajding-${id}" name="g-type-${id}" value="Slajding" ${chk(g.tip,'Slajding')} onchange="updateGlass(${id},'tip',this.value)">
+                                <label for="g-type-slajding-${id}">Slajding</label>
                             </div>
                             <div class="radio-option">
-                                <input type="radio" id="g-type-giljotina-${g.id}" name="g-type-${g.id}" value="Giljotina" onchange="saveState()">
-                                <label for="g-type-giljotina-${g.id}">Giljotina</label>
+                                <input type="radio" id="g-type-giljotina-${id}" name="g-type-${id}" value="Giljotina" ${chk(g.tip,'Giljotina')} onchange="updateGlass(${id},'tip',this.value)">
+                                <label for="g-type-giljotina-${id}">Giljotina</label>
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Cena stakla (€/m²)</label>
-                        <input type="number" id="g-price-${g.id}" placeholder="EUR/m²" min="0" step="0.01" oninput="calcGlassItem(${g.id}); savePriceLS('price_glass_m2', this.value)">
+                        <input type="number" id="g-price-${id}" placeholder="EUR/m²" min="0" step="0.01" value="${g.cenaM2}" oninput="updateGlass(${id},'cenaM2',this.value); savePriceLS('price_glass_m2',this.value)">
                     </div>
                     <div class="price-box">
                         <div class="label">Ukupno ovaj sistem (klikni da koriguj.)</div>
                         <div class="price" style="font-size:22px;">
-                            <input type="number" id="g-total-${g.id}" class="editable-price" value="0.00" min="0" step="1" oninput="onManualGlassPrice(${g.id})">
+                            <input type="number" id="g-total-${id}" class="editable-price" value="${g.total.toFixed(2)}" min="0" step="1" oninput="updateGlassManualPrice(${id})">
                             <span class="currency">EUR</span>
                         </div>
                     </div>
                 `;
                 container.appendChild(card);
+                calcGlassItem(id);
             });
-            document.getElementById('glass-count-badge').textContent = glasses.length + (glasses.length === 1 ? ' sistem' : ' sistema');
+            document.getElementById('glass-count-badge').textContent = srSistem(glasses.length);
         }
 
         function calcGlassItem(id) {
-            const w = parseFloat(document.getElementById(`g-width-${id}`)?.value) || 0;
-            const h = parseFloat(document.getElementById(`g-height-${id}`)?.value) || 0;
-            const fields = parseInt(document.getElementById(`g-fields-${id}`)?.value) || 1;
-            const priceM2 = parseFloat(document.getElementById(`g-price-${id}`)?.value) || 0;
-
+            const g = glasses.find(g => g.id === id);
+            if (!g) return;
+            const w      = parseFloat(g.sirina) || 0;
+            const h      = parseFloat(g.visina) || 0;
+            const fields = parseInt(g.polja)    || 1;
+            const priceM2 = parseFloat(g.cenaM2) || 0;
             const area = (w * h * fields) / 10000;
-            const total = area * priceM2;
-
-            if (document.getElementById(`g-area-${id}`)) {
-                document.getElementById(`g-area-${id}`).textContent = area.toFixed(2);
-                document.getElementById(`g-total-${id}`).value = total.toFixed(2);
+            if (!g.manualTotal) g.total = area * priceM2;
+            const areaEl = document.getElementById(`g-area-${id}`);
+            if (areaEl) {
+                areaEl.textContent = area.toFixed(2);
+                document.getElementById(`g-total-${id}`).value = g.total.toFixed(2);
             }
-
             calcAllGlasses();
         }
 
         function calcAllGlasses() {
-            let grand = 0;
-            glasses.forEach(g => {
-                const el = document.getElementById(`g-total-${g.id}`);
-                if (el) grand += parseFloat(el.value) || 0;
-            });
+            const grand = glasses.reduce((s, g) => s + (g.total || 0), 0);
             document.getElementById('glass-grand-total').textContent = grand.toFixed(2);
         }
 
         // ===== SUMMARY =====
         function calcSummary() {
             const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
-            const glassTotal = parseFloat(document.getElementById('glass-grand-total').textContent) || 0;
-            const subtotal = pergolaTotal + glassTotal;
-
-            document.getElementById('sum-pergole').textContent = pergolaTotal.toFixed(2);
-            document.getElementById('sum-staklo').textContent = glassTotal.toFixed(2);
+            const glassTotal   = parseFloat(document.getElementById('glass-grand-total').textContent)   || 0;
+            const subtotal     = pergolaTotal + glassTotal;
+            document.getElementById('sum-pergole').textContent  = pergolaTotal.toFixed(2);
+            document.getElementById('sum-staklo').textContent   = glassTotal.toFixed(2);
             document.getElementById('sum-subtotal').textContent = subtotal.toFixed(2);
-
             const discType = document.getElementById('discount-type').value;
-            const discVal = parseFloat(document.getElementById('discount-value').value) || 0;
+            const discVal  = parseFloat(document.getElementById('discount-value').value) || 0;
             let discount = 0;
-
             if (discVal > 0) {
-                if (discType === 'percent') {
-                    discount = subtotal * (discVal / 100);
-                } else {
-                    discount = discVal;
-                }
+                discount = discType === 'percent' ? subtotal * (discVal / 100) : discVal;
                 document.getElementById('discount-row-display').style.display = 'flex';
                 document.getElementById('sum-discount').textContent = discount.toFixed(2);
             } else {
                 document.getElementById('discount-row-display').style.display = 'none';
             }
-
             const total = Math.max(0, subtotal - discount);
             document.getElementById('sum-total').textContent = total.toFixed(2);
+            saveState();
+        }
+
+        // ===== SHARED OFFER DATA =====
+        function getOfferData() {
+            const offerDate = document.getElementById('offer-date').value || '';
+            let formattedDate = offerDate;
+            if (offerDate) {
+                const d = new Date(offerDate);
+                formattedDate = `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}.${d.getFullYear()}.`;
+            }
+            const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
+            const glassTotal   = parseFloat(document.getElementById('glass-grand-total').textContent)   || 0;
+            const subtotal     = pergolaTotal + glassTotal;
+            const discType = document.getElementById('discount-type').value;
+            const discVal  = parseFloat(document.getElementById('discount-value').value) || 0;
+            let discount = 0;
+            if (discVal > 0) discount = discType === 'percent' ? subtotal * (discVal / 100) : discVal;
+            const total = Math.max(0, subtotal - discount);
+            return {
+                clientName:    document.getElementById('client-name').value     || '—',
+                clientPhone:   document.getElementById('client-phone').value    || '—',
+                clientLocation:document.getElementById('client-location').value || '—',
+                namena:        document.querySelector('input[name="namena"]:checked')?.value || '—',
+                offerDate, formattedDate,
+                rok:           document.getElementById('rok-realizacije').value || '—',
+                napomena:      document.getElementById('napomena').value        || '',
+                pergolaTotal, glassTotal, subtotal, discType, discVal, discount, total,
+                pergoles: pergolas.map(p => ({
+                    tip: p.tip, montaza: p.montaza,
+                    sirina: p.sirina || '0', dubina: p.dubina || '0',
+                    visina: p.visina || '250', strane: p.strane || '0',
+                    cena: p.total || 0
+                })),
+                stakla: glasses.map(g => ({
+                    tip: g.tip, montaza: g.montaza,
+                    sirina: g.sirina || '0', visina: g.visina || '0',
+                    polja: g.polja || '1', strane: g.strane || '1',
+                    cena: g.total || 0
+                }))
+            };
+        }
+
+        // ===== VALIDATE =====
+        function validateOffer() {
+            if (!document.getElementById('client-name').value.trim()) {
+                showToast('⚠ Unesite ime klijenta');
+                switchTab('klijent');
+                return false;
+            }
+            if (pergolas.length === 0 && glasses.length === 0) {
+                showToast('⚠ Dodajte pergolu ili stakleni sistem');
+                switchTab('pergole');
+                return false;
+            }
+            return true;
+        }
+
+        // ===== BUILD OFFER HTML =====
+        function glassNotes(staklaArr) {
+            const hasS = staklaArr.some(g => g.tip === 'Slajding');
+            const hasG = staklaArr.some(g => g.tip === 'Giljotina');
+            if (hasS && hasG) return 'Slajding i giljotina sistemi: duplo staklo 4+14+4mm.<br>Giljotina sistemi: motor uključen u cenu.<br>';
+            if (hasS) return 'Slajding sistem: duplo staklo 4+14+4mm.<br>';
+            if (hasG) return 'Giljotina sistem: duplo staklo 4+14+4mm, motor uključen u cenu.<br>';
+            return '';
+        }
+
+        function buildOfferHtml(data, broj) {
+            const e = escapeHtml;
+            const pergolaRows = data.pergoles.map((p, i) => {
+                const area = ((parseFloat(p.sirina) * parseFloat(p.dubina)) / 10000).toFixed(2);
+                return `<tr>
+                    <td>${i+1}</td>
+                    <td>${e(p.tip)}<br><small style="color:#888">${e(p.montaza)}</small></td>
+                    <td>${e(p.sirina)}×${e(p.dubina)} cm<br><small style="color:#888">${area} m²</small></td>
+                    <td>${e(p.strane)}</td>
+                    <td style="text-align:right;font-weight:700;">${parseFloat(p.cena).toFixed(2)} €</td>
+                </tr>`;
+            }).join('');
+            const glassRows = data.stakla.map((g, i) => {
+                const area = ((parseFloat(g.sirina) * parseFloat(g.visina) * parseFloat(g.polja)) / 10000).toFixed(2);
+                return `<tr>
+                    <td>${i+1}</td>
+                    <td>${e(g.tip)}<br><small style="color:#888">${e(g.montaza)}</small></td>
+                    <td>${e(g.sirina)}×${e(g.visina)} cm<br><small style="color:#888">${area} m², ${e(g.polja)} polja</small></td>
+                    <td style="text-align:right;font-weight:700;">${parseFloat(g.cena).toFixed(2)} €</td>
+                </tr>`;
+            }).join('');
+            const discountLine = data.discount > 0
+                ? `<div style="text-align:right;color:#e74c3c;font-size:14px;">Popust (${data.discType === 'percent' ? data.discVal+'%' : data.discVal+' EUR'}): -${data.discount.toFixed(2)} EUR</div>`
+                : '';
+            return `
+                <h2>${COMPANY_NAME}</h2>
+                <h3>Ponuda br. ${e(broj)}</h3>
+                <div style="font-size:13px;margin-bottom:12px;">
+                    <strong>Datum:</strong> ${e(data.formattedDate)}<br>
+                    <strong>Klijent:</strong> ${e(data.clientName)}<br>
+                    <strong>Telefon:</strong> ${e(data.clientPhone)}<br>
+                    <strong>Lokacija:</strong> ${e(data.clientLocation)}<br>
+                    <strong>Namena:</strong> ${e(data.namena)}
+                </div>
+                ${data.pergoles.length > 0 ? `
+                <div class="section-header">PERGOLE</div>
+                <table>
+                    <tr><th>#</th><th>Tip</th><th>Dimenzije</th><th>Strane</th><th style="text-align:right;">Cena</th></tr>
+                    ${pergolaRows}
+                </table>
+                <div style="text-align:right;font-weight:700;margin:8px 0;">Pergole ukupno: ${data.pergolaTotal.toFixed(2)} EUR</div>
+                <div style="font-size:12px;color:#666;background:#f8f5f0;padding:8px 10px;border-radius:6px;margin:8px 0;line-height:1.6;">
+                    U cenu je uključeno: motor, automatika i LED rasveta.<br>Montaža i transport do gradilišta su uračunati.
+                </div>` : ''}
+                ${data.stakla.length > 0 ? `
+                <div class="section-header">STAKLENI SISTEMI</div>
+                <table>
+                    <tr><th>#</th><th>Tip</th><th>Dimenzije</th><th style="text-align:right;">Cena</th></tr>
+                    ${glassRows}
+                </table>
+                <div style="text-align:right;font-weight:700;margin:8px 0;">Staklo ukupno: ${data.glassTotal.toFixed(2)} EUR</div>
+                <div style="font-size:12px;color:#666;background:#f8f5f0;padding:8px 10px;border-radius:6px;margin:8px 0;line-height:1.6;">
+                    ${glassNotes(data.stakla)}Montaža i transport do gradilišta su uračunati.
+                </div>` : ''}
+                <div style="margin-top:16px;padding-top:12px;border-top:1px solid #ddd;">
+                    <div style="text-align:right;font-size:14px;">Međuzbir: ${data.subtotal.toFixed(2)} EUR</div>
+                    ${discountLine}
+                </div>
+                <div class="total-line">UKUPNO: ${data.total.toFixed(2)} EUR</div>
+                ${data.rok !== '—' ? `<div style="margin-top:12px;font-size:13px;"><strong>Rok realizacije:</strong> ${e(data.rok)}</div>` : ''}
+                ${data.napomena ? `<div style="margin-top:8px;font-size:13px;"><strong>Napomena:</strong> ${e(data.napomena)}</div>` : ''}
+                <div class="footer-note">
+                    ${COMPANY_NAME} | Tel: ${CONTACT_PHONE} - ${CONTACT_NAME}<br>
+                    Ponuda važi ${OFFER_VALID_DAYS} dana od datuma izdavanja.
+                </div>`;
         }
 
         // ===== GENERATE PREVIEW =====
         function generatePreview() {
+            if (!validateOffer()) return;
             calcSummary();
-            // Reset save button for new preview
-            currentOfferBroj = Date.now().toString().slice(-6);
+            if (!currentOfferBroj) currentOfferBroj = getNextOfferNumber();
             const btnSave = document.getElementById('btn-save-archive');
             if (btnSave) {
                 btnSave.textContent = '💾 Sačuvaj u arhivu';
-                btnSave.style.background = '';
+                btnSave.style.cssText = '';
                 btnSave.className = 'btn btn-save-arc';
             }
-
-            const clientName = document.getElementById('client-name').value || '—';
-            const clientPhone = document.getElementById('client-phone').value || '—';
-            const clientLocation = document.getElementById('client-location').value || '—';
-            const namena = document.querySelector('input[name="namena"]:checked')?.value || '—';
-            const offerDate = document.getElementById('offer-date').value || '—';
-            const rok = document.getElementById('rok-realizacije').value || '—';
-            const napomena = document.getElementById('napomena').value || '';
-
-            const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
-            const glassTotal = parseFloat(document.getElementById('glass-grand-total').textContent) || 0;
-            const subtotal = pergolaTotal + glassTotal;
-            const discType = document.getElementById('discount-type').value;
-            const discVal = parseFloat(document.getElementById('discount-value').value) || 0;
-            let discount = 0;
-            if (discVal > 0) {
-                discount = discType === 'percent' ? subtotal * (discVal / 100) : discVal;
-            }
-            const total = Math.max(0, subtotal - discount);
-
-            let formattedDate = offerDate;
-            if (offerDate && offerDate !== '—') {
-                const d = new Date(offerDate);
-                formattedDate = `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}.`;
-            }
-
-            // Build pergola rows
-            let pergolaRows = '';
-            pergolas.forEach((p, idx) => {
-                const mount = document.querySelector(`input[name="p-mount-${p.id}"]:checked`)?.value || '—';
-                const w = document.getElementById(`p-width-${p.id}`)?.value || '0';
-                const d = document.getElementById(`p-depth-${p.id}`)?.value || '0';
-                const area = ((parseFloat(w) * parseFloat(d)) / 10000).toFixed(2);
-                const type = document.querySelector(`input[name="p-type-${p.id}"]:checked`)?.value || '—';
-                const sides = document.getElementById(`p-sides-${p.id}`)?.value || '0';
-                const totalP = document.getElementById(`p-total-${p.id}`)?.value || '0.00';
-                pergolaRows += `
-                    <tr>
-                        <td>${idx + 1}</td>
-                        <td>${type}<br><small style="color:#888">${mount}</small></td>
-                        <td>${w}×${d} cm<br><small style="color:#888">${area} m²</small></td>
-                        <td>${sides}</td>
-                        <td style="text-align:right;font-weight:700;">${totalP} €</td>
-                    </tr>`;
-            });
-
-            // Build glass rows
-            let glassRows = '';
-            glasses.forEach((g, idx) => {
-                const mount = document.querySelector(`input[name="g-mount-${g.id}"]:checked`)?.value || '—';
-                const w = document.getElementById(`g-width-${g.id}`)?.value || '0';
-                const h = document.getElementById(`g-height-${g.id}`)?.value || '0';
-                const fields = document.getElementById(`g-fields-${g.id}`)?.value || '1';
-                const area = document.getElementById(`g-area-${g.id}`)?.textContent || '0.00';
-                const type = document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '—';
-                const totalG = document.getElementById(`g-total-${g.id}`)?.value || '0.00';
-                glassRows += `
-                    <tr>
-                        <td>${idx + 1}</td>
-                        <td>${type}<br><small style="color:#888">${mount}</small></td>
-                        <td>${w}×${h} cm<br><small style="color:#888">${area} m², ${fields} polja</small></td>
-                        <td style="text-align:right;font-weight:700;">${totalG} €</td>
-                    </tr>`;
-            });
-
-            let discountLine = '';
-            if (discount > 0) {
-                const discLabel = discType === 'percent' ? `${discVal}%` : `${discVal} EUR`;
-                discountLine = `<div style="text-align:right;color:#e74c3c;font-size:14px;">Popust (${discLabel}): -${discount.toFixed(2)} EUR</div>`;
-            }
-
-            const html = `
-                <h2>PROHORECA AG GROUP</h2>
-                <h3>Ponuda br. ${currentOfferBroj}</h3>
-
-                <div style="font-size:13px;margin-bottom:12px;">
-                    <strong>Datum:</strong> ${formattedDate}<br>
-                    <strong>Klijent:</strong> ${clientName}<br>
-                    <strong>Telefon:</strong> ${clientPhone}<br>
-                    <strong>Lokacija:</strong> ${clientLocation}<br>
-                    <strong>Namena:</strong> ${namena}
-                </div>
-
-                ${pergolas.length > 0 ? `
-                <div class="section-header">PERGOLE</div>
-                <table>
-                    <tr>
-                        <th>#</th>
-                        <th>Tip</th>
-                        <th>Dimenzije</th>
-                        <th>Strane</th>
-                        <th style="text-align:right;">Cena</th>
-                    </tr>
-                    ${pergolaRows}
-                </table>
-                <div style="text-align:right;font-weight:700;margin:8px 0;">Pergole ukupno: ${pergolaTotal.toFixed(2)} EUR</div>
-                <div style="font-size:12px;color:#666;background:#f8f5f0;padding:8px 10px;border-radius:6px;margin:8px 0;line-height:1.6;">
-                    U cenu je uključeno: motor, automatika i LED rasveta.<br>
-                    Montaža i transport do gradilišta su uračunati.
-                </div>
-                ` : ''}
-
-                ${glasses.length > 0 ? `
-                <div class="section-header">STAKLENI SISTEMI</div>
-                <table>
-                    <tr>
-                        <th>#</th>
-                        <th>Tip</th>
-                        <th>Dimenzije</th>
-                        <th style="text-align:right;">Cena</th>
-                    </tr>
-                    ${glassRows}
-                </table>
-                <div style="text-align:right;font-weight:700;margin:8px 0;">Staklo ukupno: ${glassTotal.toFixed(2)} EUR</div>
-                <div style="font-size:12px;color:#666;background:#f8f5f0;padding:8px 10px;border-radius:6px;margin:8px 0;line-height:1.6;">
-                    ${getGlassInfoNotes()}
-                    Montaža i transport do gradilišta su uračunati.
-                </div>
-                ` : ''}
-
-                <div style="margin-top:16px;padding-top:12px;border-top:1px solid #ddd;">
-                    <div style="text-align:right;font-size:14px;">Međuzbir: ${subtotal.toFixed(2)} EUR</div>
-                    ${discountLine}
-                </div>
-
-                <div class="total-line">UKUPNO: ${total.toFixed(2)} EUR</div>
-
-                ${rok !== '—' ? `<div style="margin-top:12px;font-size:13px;"><strong>Rok realizacije:</strong> ${rok}</div>` : ''}
-                ${napomena ? `<div style="margin-top:8px;font-size:13px;"><strong>Napomena:</strong> ${napomena}</div>` : ''}
-
-                <div class="footer-note">
-                    PROHORECA AG GROUP | Tel: 0648979242 - Aleksandar<br>
-                    Ponuda važi 7 dana od datuma izdavanja.
-                </div>
-            `;
-
-            document.getElementById('preview-box').innerHTML = html;
+            const data = getOfferData();
+            document.getElementById('preview-box').innerHTML = buildOfferHtml(data, currentOfferBroj);
             document.getElementById('preview-container').style.display = 'block';
             document.getElementById('preview-container').scrollIntoView({ behavior: 'smooth' });
+            saveState();
         }
 
         // ===== PDF =====
-        // Helper: convert Serbian chars to ASCII for PDF (Helvetica has no č,ž,š,đ,ć)
         function pdfSafe(str) {
             if (!str) return str;
-            return str
-                .replace(/č/g, 'c').replace(/Č/g, 'C')
-                .replace(/ć/g, 'c').replace(/Ć/g, 'C')
-                .replace(/ž/g, 'z').replace(/Ž/g, 'Z')
-                .replace(/š/g, 's').replace(/Š/g, 'S')
-                .replace(/đ/g, 'dj').replace(/Đ/g, 'Dj');
+            return String(str)
+                .replace(/č/g,'c').replace(/Č/g,'C').replace(/ć/g,'c').replace(/Ć/g,'C')
+                .replace(/ž/g,'z').replace(/Ž/g,'Z').replace(/š/g,'s').replace(/Š/g,'S')
+                .replace(/đ/g,'dj').replace(/Đ/g,'Dj');
         }
 
         function downloadPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
-            const pageWidth = 210;
-            const margin = 15;
-            const contentWidth = pageWidth - 2 * margin;
+            const pageWidth = 210, margin = 15, contentWidth = pageWidth - 2 * margin;
             let y = 15;
+            const broj = currentOfferBroj || getNextOfferNumber();
+            const data = getOfferData();
+            const ps = s => pdfSafe(String(s));
 
-            const clientName = pdfSafe(document.getElementById('client-name').value || '—');
-            const clientPhone = document.getElementById('client-phone').value || '—';
-            const clientLocation = pdfSafe(document.getElementById('client-location').value || '—');
-            const namena = pdfSafe(document.querySelector('input[name="namena"]:checked')?.value || '—');
-            const offerDate = document.getElementById('offer-date').value || '—';
-            const rok = pdfSafe(document.getElementById('rok-realizacije').value || '—');
-            const napomena = pdfSafe(document.getElementById('napomena').value || '');
-
-            let formattedDate = offerDate;
-            if (offerDate && offerDate !== '—') {
-                const d = new Date(offerDate);
-                formattedDate = `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}.`;
+            function checkPage(needed) { if (y + needed > 280) { doc.addPage(); y = 15; } }
+            function drawLine(yp) {
+                doc.setDrawColor(212,165,116); doc.setLineWidth(0.5);
+                doc.line(margin, yp, pageWidth - margin, yp);
             }
 
-            const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
-            const glassTotal = parseFloat(document.getElementById('glass-grand-total').textContent) || 0;
-            const subtotal = pergolaTotal + glassTotal;
-            const discType = document.getElementById('discount-type').value;
-            const discVal = parseFloat(document.getElementById('discount-value').value) || 0;
-            let discount = 0;
-            if (discVal > 0) discount = discType === 'percent' ? subtotal * (discVal / 100) : discVal;
-            const total = Math.max(0, subtotal - discount);
-
-            // Helper functions
-            function checkPage(needed) {
-                if (y + needed > 280) {
-                    doc.addPage();
-                    y = 15;
-                }
-            }
-
-            function drawLine(yPos) {
-                doc.setDrawColor(212, 165, 116);
-                doc.setLineWidth(0.5);
-                doc.line(margin, yPos, pageWidth - margin, yPos);
-            }
-
-            // Header
-            doc.setFillColor(26, 26, 46);
-            doc.rect(0, 0, 210, 35, 'F');
-            doc.setTextColor(212, 165, 116);
-            doc.setFontSize(20);
-            doc.setFont('helvetica', 'bold');
-            doc.text('PROHORECA AG GROUP', pageWidth / 2, 16, { align: 'center' });
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(170, 170, 187);
-            doc.text('Pergole i stakleni sistemi', pageWidth / 2, 24, { align: 'center' });
-            doc.text('Tel: 0648979242 | Aleksandar', pageWidth / 2, 30, { align: 'center' });
-
+            doc.setFillColor(26,26,46); doc.rect(0,0,210,35,'F');
+            doc.setTextColor(212,165,116); doc.setFontSize(20); doc.setFont('helvetica','bold');
+            doc.text(COMPANY_NAME, pageWidth/2, 16, {align:'center'});
+            doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(170,170,187);
+            doc.text('Pergole i stakleni sistemi', pageWidth/2, 24, {align:'center'});
+            doc.text(`Tel: ${CONTACT_PHONE} | ${CONTACT_NAME}`, pageWidth/2, 30, {align:'center'});
             y = 42;
 
-            // Offer number & date
-            doc.setTextColor(50, 50, 50);
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(50,50,50); doc.setFontSize(14); doc.setFont('helvetica','bold');
             doc.text('PONUDA', margin, y);
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100, 100, 100);
-            doc.text(`Datum: ${formattedDate}`, pageWidth - margin, y, { align: 'right' });
-            y += 8;
+            doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(100,100,100);
+            doc.text(`Br. ${ps(broj)} | Datum: ${data.formattedDate}`, pageWidth-margin, y, {align:'right'});
+            y += 8; drawLine(y); y += 8;
 
-            drawLine(y);
-            y += 8;
-
-            // Client info
-            doc.setFontSize(11);
-            doc.setTextColor(50, 50, 50);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Podaci o klijentu:', margin, y);
-            y += 7;
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(10);
-            const clientInfo = [
-                `Ime i prezime: ${clientName}`,
-                `Telefon: ${clientPhone}`,
-                `Lokacija: ${clientLocation}`,
-                `Namena: ${namena}`
-            ];
-            clientInfo.forEach(line => {
-                doc.text(line, margin, y);
-                y += 6;
-            });
+            doc.setFontSize(11); doc.setTextColor(50,50,50); doc.setFont('helvetica','bold');
+            doc.text('Podaci o klijentu:', margin, y); y += 7;
+            doc.setFont('helvetica','normal'); doc.setFontSize(10);
+            [`Ime i prezime: ${ps(data.clientName)}`,`Telefon: ${data.clientPhone}`,
+             `Lokacija: ${ps(data.clientLocation)}`,`Namena: ${ps(data.namena)}`
+            ].forEach(line => { doc.text(line, margin, y); y += 6; });
             y += 4;
 
-            // Pergolas
-            if (pergolas.length > 0) {
+            if (data.pergoles.length > 0) {
                 checkPage(40);
-                doc.setFillColor(26, 26, 46);
-                doc.rect(margin, y - 4, contentWidth, 8, 'F');
-                doc.setTextColor(212, 165, 116);
-                doc.setFontSize(11);
-                doc.setFont('helvetica', 'bold');
-                doc.text('PERGOLE', margin + 4, y + 1);
-                y += 10;
-
-                // Table header
-                doc.setFillColor(240, 240, 240);
-                doc.rect(margin, y - 4, contentWidth, 7, 'F');
-                doc.setTextColor(80, 80, 80);
-                doc.setFontSize(8);
-                doc.setFont('helvetica', 'bold');
-                doc.text('#', margin + 2, y);
-                doc.text('Tip', margin + 12, y);
-                doc.text('Dimenzije', margin + 60, y);
-                doc.text('m2', margin + 105, y);
-                doc.text('Strane', margin + 120, y);
-                doc.text('Cena', margin + contentWidth - 5, y, { align: 'right' });
-                y += 6;
-
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(9);
-                doc.setTextColor(50, 50, 50);
-
-                pergolas.forEach((p, idx) => {
+                doc.setFillColor(26,26,46); doc.rect(margin, y-4, contentWidth, 8, 'F');
+                doc.setTextColor(212,165,116); doc.setFontSize(11); doc.setFont('helvetica','bold');
+                doc.text('PERGOLE', margin+4, y+1); y += 10;
+                doc.setFillColor(240,240,240); doc.rect(margin, y-4, contentWidth, 7, 'F');
+                doc.setTextColor(80,80,80); doc.setFontSize(8); doc.setFont('helvetica','bold');
+                doc.text('#',margin+2,y); doc.text('Tip',margin+12,y);
+                doc.text('Dimenzije',margin+60,y); doc.text('m2',margin+105,y);
+                doc.text('Strane',margin+120,y); doc.text('Cena',margin+contentWidth-5,y,{align:'right'});
+                y += 6; doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(50,50,50);
+                data.pergoles.forEach((p, i) => {
                     checkPage(12);
-                    const mount = pdfSafe(document.querySelector(`input[name="p-mount-${p.id}"]:checked`)?.value || '—');
-                    const w = document.getElementById(`p-width-${p.id}`)?.value || '0';
-                    const d = document.getElementById(`p-depth-${p.id}`)?.value || '0';
-                    const area = ((parseFloat(w) * parseFloat(d)) / 10000).toFixed(2);
-                    const type = pdfSafe(document.querySelector(`input[name="p-type-${p.id}"]:checked`)?.value || '—');
-                    const sides = document.getElementById(`p-sides-${p.id}`)?.value || '0';
-                    const totalP = document.getElementById(`p-total-${p.id}`)?.value || '0.00';
-
-                    doc.text(`${idx + 1}`, margin + 2, y);
-                    doc.text(`${type}`, margin + 12, y);
-                    doc.setFontSize(7);
-                    doc.setTextColor(130, 130, 130);
-                    doc.text(`(${mount})`, margin + 12, y + 4);
-                    doc.setFontSize(9);
-                    doc.setTextColor(50, 50, 50);
-                    doc.text(`${w} x ${d} cm`, margin + 60, y);
-                    doc.text(`${area}`, margin + 105, y);
-                    doc.text(`${sides}`, margin + 122, y);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text(`${totalP} EUR`, margin + contentWidth - 5, y, { align: 'right' });
-                    doc.setFont('helvetica', 'normal');
-                    y += 10;
-
-                    doc.setDrawColor(230, 230, 230);
-                    doc.setLineWidth(0.2);
-                    doc.line(margin, y - 3, pageWidth - margin, y - 3);
+                    const area = ((parseFloat(p.sirina)*parseFloat(p.dubina))/10000).toFixed(2);
+                    doc.text(`${i+1}`, margin+2, y); doc.text(ps(p.tip), margin+12, y);
+                    doc.setFontSize(7); doc.setTextColor(130,130,130);
+                    doc.text(`(${ps(p.montaza)})`, margin+12, y+4);
+                    doc.setFontSize(9); doc.setTextColor(50,50,50);
+                    doc.text(`${p.sirina} x ${p.dubina} cm`, margin+60, y);
+                    doc.text(`${area}`, margin+105, y); doc.text(`${p.strane}`, margin+122, y);
+                    doc.setFont('helvetica','bold');
+                    doc.text(`${parseFloat(p.cena).toFixed(2)} EUR`, margin+contentWidth-5, y, {align:'right'});
+                    doc.setFont('helvetica','normal'); y += 10;
+                    doc.setDrawColor(230,230,230); doc.setLineWidth(0.2);
+                    doc.line(margin, y-3, pageWidth-margin, y-3);
                 });
-
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(10);
-                doc.text(`Pergole ukupno: ${pergolaTotal.toFixed(2)} EUR`, pageWidth - margin, y, { align: 'right' });
-                y += 8;
-
-                // Pergola info notes
-                checkPage(16);
-                doc.setFillColor(248, 245, 240);
-                doc.rect(margin, y - 3, contentWidth, 14, 'F');
-                doc.setFontSize(7.5);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(100, 100, 100);
-                doc.text('U cenu je ukljuceno: motor, automatika i LED rasveta.', margin + 3, y + 1);
-                doc.text('Montaza i transport do gradilista su uracunati.', margin + 3, y + 6);
+                doc.setFont('helvetica','bold'); doc.setFontSize(10);
+                doc.text(`Pergole ukupno: ${data.pergolaTotal.toFixed(2)} EUR`, pageWidth-margin, y, {align:'right'});
+                y += 8; checkPage(16);
+                doc.setFillColor(248,245,240); doc.rect(margin, y-3, contentWidth, 14, 'F');
+                doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(100,100,100);
+                doc.text('U cenu je ukljuceno: motor, automatika i LED rasveta.', margin+3, y+1);
+                doc.text('Montaza i transport do gradilista su uracunati.', margin+3, y+6);
                 y += 16;
             }
 
-            // Glass
-            if (glasses.length > 0) {
+            if (data.stakla.length > 0) {
                 checkPage(40);
-                doc.setFillColor(26, 26, 46);
-                doc.rect(margin, y - 4, contentWidth, 8, 'F');
-                doc.setTextColor(212, 165, 116);
-                doc.setFontSize(11);
-                doc.setFont('helvetica', 'bold');
-                doc.text('STAKLENI SISTEMI', margin + 4, y + 1);
-                y += 10;
-
-                // Table header
-                doc.setFillColor(240, 240, 240);
-                doc.rect(margin, y - 4, contentWidth, 7, 'F');
-                doc.setTextColor(80, 80, 80);
-                doc.setFontSize(8);
-                doc.setFont('helvetica', 'bold');
-                doc.text('#', margin + 2, y);
-                doc.text('Tip', margin + 12, y);
-                doc.text('Dimenzije', margin + 60, y);
-                doc.text('m2', margin + 105, y);
-                doc.text('Polja', margin + 120, y);
-                doc.text('Cena', margin + contentWidth - 5, y, { align: 'right' });
-                y += 6;
-
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(9);
-                doc.setTextColor(50, 50, 50);
-
-                glasses.forEach((g, idx) => {
+                doc.setFillColor(26,26,46); doc.rect(margin, y-4, contentWidth, 8, 'F');
+                doc.setTextColor(212,165,116); doc.setFontSize(11); doc.setFont('helvetica','bold');
+                doc.text('STAKLENI SISTEMI', margin+4, y+1); y += 10;
+                doc.setFillColor(240,240,240); doc.rect(margin, y-4, contentWidth, 7, 'F');
+                doc.setTextColor(80,80,80); doc.setFontSize(8); doc.setFont('helvetica','bold');
+                doc.text('#',margin+2,y); doc.text('Tip',margin+12,y);
+                doc.text('Dimenzije',margin+60,y); doc.text('m2',margin+105,y);
+                doc.text('Polja',margin+120,y); doc.text('Cena',margin+contentWidth-5,y,{align:'right'});
+                y += 6; doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(50,50,50);
+                data.stakla.forEach((g, i) => {
                     checkPage(12);
-                    const mount = pdfSafe(document.querySelector(`input[name="g-mount-${g.id}"]:checked`)?.value || '—');
-                    const w = document.getElementById(`g-width-${g.id}`)?.value || '0';
-                    const h = document.getElementById(`g-height-${g.id}`)?.value || '0';
-                    const fields = document.getElementById(`g-fields-${g.id}`)?.value || '1';
-                    const area = document.getElementById(`g-area-${g.id}`)?.textContent || '0.00';
-                    const type = pdfSafe(document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '—');
-                    const totalG = document.getElementById(`g-total-${g.id}`)?.value || '0.00';
-
-                    doc.text(`${idx + 1}`, margin + 2, y);
-                    doc.text(`${type}`, margin + 12, y);
-                    doc.setFontSize(7);
-                    doc.setTextColor(130, 130, 130);
-                    doc.text(`(${mount})`, margin + 12, y + 4);
-                    doc.setFontSize(9);
-                    doc.setTextColor(50, 50, 50);
-                    doc.text(`${w} x ${h} cm`, margin + 60, y);
-                    doc.text(`${area}`, margin + 105, y);
-                    doc.text(`${fields}`, margin + 122, y);
-                    doc.setFont('helvetica', 'bold');
-                    doc.text(`${totalG} EUR`, margin + contentWidth - 5, y, { align: 'right' });
-                    doc.setFont('helvetica', 'normal');
-                    y += 10;
-
-                    doc.setDrawColor(230, 230, 230);
-                    doc.setLineWidth(0.2);
-                    doc.line(margin, y - 3, pageWidth - margin, y - 3);
+                    const area = ((parseFloat(g.sirina)*parseFloat(g.visina)*parseFloat(g.polja))/10000).toFixed(2);
+                    doc.text(`${i+1}`, margin+2, y); doc.text(ps(g.tip), margin+12, y);
+                    doc.setFontSize(7); doc.setTextColor(130,130,130);
+                    doc.text(`(${ps(g.montaza)})`, margin+12, y+4);
+                    doc.setFontSize(9); doc.setTextColor(50,50,50);
+                    doc.text(`${g.sirina} x ${g.visina} cm`, margin+60, y);
+                    doc.text(`${area}`, margin+105, y); doc.text(`${g.polja}`, margin+122, y);
+                    doc.setFont('helvetica','bold');
+                    doc.text(`${parseFloat(g.cena).toFixed(2)} EUR`, margin+contentWidth-5, y, {align:'right'});
+                    doc.setFont('helvetica','normal'); y += 10;
+                    doc.setDrawColor(230,230,230); doc.setLineWidth(0.2);
+                    doc.line(margin, y-3, pageWidth-margin, y-3);
                 });
-
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(10);
-                doc.text(`Staklo ukupno: ${glassTotal.toFixed(2)} EUR`, pageWidth - margin, y, { align: 'right' });
+                doc.setFont('helvetica','bold'); doc.setFontSize(10);
+                doc.text(`Staklo ukupno: ${data.glassTotal.toFixed(2)} EUR`, pageWidth-margin, y, {align:'right'});
                 y += 8;
-
-                // Glass info notes
-                const glassNoteLines = [];
-                let pdfHasSlajding = false, pdfHasGiljotina = false;
-                glasses.forEach(g => {
-                    const gtype = document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '';
-                    if (gtype === 'Slajding') pdfHasSlajding = true;
-                    if (gtype === 'Giljotina') pdfHasGiljotina = true;
-                });
-                if (pdfHasSlajding && pdfHasGiljotina) {
-                    glassNoteLines.push('Slajding i giljotina sistemi: duplo staklo 4+14+4mm.');
-                    glassNoteLines.push('Giljotina sistemi: motor ukljucen u cenu.');
-                } else if (pdfHasSlajding) {
-                    glassNoteLines.push('Slajding sistem: duplo staklo 4+14+4mm.');
-                } else if (pdfHasGiljotina) {
-                    glassNoteLines.push('Giljotina sistem: duplo staklo 4+14+4mm, motor ukljucen u cenu.');
-                }
-                glassNoteLines.push('Montaza i transport do gradilista su uracunati.');
-
-                checkPage(6 + glassNoteLines.length * 5);
-                doc.setFillColor(248, 245, 240);
-                doc.rect(margin, y - 3, contentWidth, 4 + glassNoteLines.length * 5, 'F');
-                doc.setFontSize(7.5);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(100, 100, 100);
-                glassNoteLines.forEach((line, li) => {
-                    doc.text(line, margin + 3, y + 1 + li * 5);
-                });
-                y += 6 + glassNoteLines.length * 5;
+                const gnl = [];
+                const hasS = data.stakla.some(g => g.tip==='Slajding');
+                const hasG = data.stakla.some(g => g.tip==='Giljotina');
+                if (hasS && hasG) { gnl.push('Slajding i giljotina sistemi: duplo staklo 4+14+4mm.'); gnl.push('Giljotina sistemi: motor ukljucen u cenu.'); }
+                else if (hasS) gnl.push('Slajding sistem: duplo staklo 4+14+4mm.');
+                else if (hasG) gnl.push('Giljotina sistem: duplo staklo 4+14+4mm, motor ukljucen u cenu.');
+                gnl.push('Montaza i transport do gradilista su uracunati.');
+                checkPage(6 + gnl.length * 5);
+                doc.setFillColor(248,245,240); doc.rect(margin, y-3, contentWidth, 4+gnl.length*5, 'F');
+                doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(100,100,100);
+                gnl.forEach((line, li) => doc.text(line, margin+3, y+1+li*5));
+                y += 6 + gnl.length * 5;
             }
 
-            // Totals
-            checkPage(40);
-            drawLine(y);
-            y += 8;
-
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(80, 80, 80);
+            checkPage(40); drawLine(y); y += 8;
+            doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,80);
             doc.text('Medjuzbir:', margin, y);
-            doc.text(`${subtotal.toFixed(2)} EUR`, pageWidth - margin, y, { align: 'right' });
-            y += 7;
-
-            if (discount > 0) {
-                const discLabel = discType === 'percent' ? `${discVal}%` : `${discVal} EUR`;
-                doc.setTextColor(231, 76, 60);
-                doc.text(`Popust (${discLabel}):`, margin, y);
-                doc.text(`-${discount.toFixed(2)} EUR`, pageWidth - margin, y, { align: 'right' });
-                y += 7;
+            doc.text(`${data.subtotal.toFixed(2)} EUR`, pageWidth-margin, y, {align:'right'}); y += 7;
+            if (data.discount > 0) {
+                const dl = data.discType==='percent' ? `${data.discVal}%` : `${data.discVal} EUR`;
+                doc.setTextColor(231,76,60);
+                doc.text(`Popust (${dl}):`, margin, y);
+                doc.text(`-${data.discount.toFixed(2)} EUR`, pageWidth-margin, y, {align:'right'}); y += 7;
             }
-
-            drawLine(y);
-            y += 8;
-
-            doc.setFillColor(26, 26, 46);
-            doc.rect(margin, y - 6, contentWidth, 12, 'F');
-            doc.setTextColor(212, 165, 116);
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text('UKUPNO:', margin + 4, y + 2);
-            doc.text(`${total.toFixed(2)} EUR`, pageWidth - margin - 4, y + 2, { align: 'right' });
-            y += 16;
-
-            // Rok & napomena
-            if (rok !== '—') {
-                doc.setTextColor(50, 50, 50);
-                doc.setFontSize(10);
-                doc.setFont('helvetica', 'bold');
-                doc.text('Rok realizacije:', margin, y);
-                doc.setFont('helvetica', 'normal');
-                doc.text(pdfSafe(rok), margin + 40, y);
-                y += 7;
+            drawLine(y); y += 8;
+            doc.setFillColor(26,26,46); doc.rect(margin, y-6, contentWidth, 12, 'F');
+            doc.setTextColor(212,165,116); doc.setFontSize(14); doc.setFont('helvetica','bold');
+            doc.text('UKUPNO:', margin+4, y+2);
+            doc.text(`${data.total.toFixed(2)} EUR`, pageWidth-margin-4, y+2, {align:'right'}); y += 16;
+            if (data.rok !== '—') {
+                doc.setTextColor(50,50,50); doc.setFontSize(10); doc.setFont('helvetica','bold');
+                doc.text('Rok realizacije:', margin, y); doc.setFont('helvetica','normal');
+                doc.text(ps(data.rok), margin+40, y); y += 7;
             }
-
-            if (napomena) {
-                checkPage(20);
-                doc.setFont('helvetica', 'bold');
-                doc.text('Napomena:', margin, y);
-                doc.setFont('helvetica', 'normal');
-                const splitNapomena = doc.splitTextToSize(pdfSafe(napomena), contentWidth - 30);
-                doc.text(splitNapomena, margin + 28, y);
-                y += splitNapomena.length * 5 + 5;
+            if (data.napomena) {
+                checkPage(20); doc.setFont('helvetica','bold'); doc.setTextColor(50,50,50);
+                doc.text('Napomena:', margin, y); doc.setFont('helvetica','normal');
+                const sn = doc.splitTextToSize(ps(data.napomena), contentWidth-30);
+                doc.text(sn, margin+28, y); y += sn.length*5+5;
             }
-
-            // Footer
-            y = Math.max(y + 10, 260);
-            checkPage(20);
-            doc.setDrawColor(212, 165, 116);
-            doc.setLineWidth(0.5);
-            doc.line(margin, y, pageWidth - margin, y);
-            y += 6;
-            doc.setFontSize(8);
-            doc.setTextColor(130, 130, 130);
-            doc.setFont('helvetica', 'normal');
-            doc.text('PROHORECA AG GROUP | Tel: 0648979242 - Aleksandar', pageWidth / 2, y, { align: 'center' });
-            y += 4;
-            doc.text('Ponuda vazi 7 dana od datuma izdavanja.', pageWidth / 2, y, { align: 'center' });
-
-            // Save
-            const filename = `Ponuda_${clientName.replace(/\s+/g, '_')}_${formattedDate.replace(/\./g, '')}.pdf`;
+            y = Math.max(y+10, 260); checkPage(20);
+            doc.setDrawColor(212,165,116); doc.setLineWidth(0.5);
+            doc.line(margin, y, pageWidth-margin, y); y += 6;
+            doc.setFontSize(8); doc.setTextColor(130,130,130); doc.setFont('helvetica','normal');
+            doc.text(`${COMPANY_NAME} | Tel: ${CONTACT_PHONE} - ${CONTACT_NAME}`, pageWidth/2, y, {align:'center'}); y += 4;
+            doc.text(`Ponuda vazi ${OFFER_VALID_DAYS} dana od datuma izdavanja.`, pageWidth/2, y, {align:'center'});
+            const filename = `Ponuda_${ps(data.clientName).replace(/\s+/g,'_')}_${data.formattedDate.replace(/\./g,'')}.pdf`;
             doc.save(filename);
             showToast('PDF preuzet!');
         }
 
         // ===== COPY TEXT =====
         function copyText() {
-            const clientName = document.getElementById('client-name').value || '—';
-            const clientPhone = document.getElementById('client-phone').value || '—';
-            const clientLocation = document.getElementById('client-location').value || '—';
-            const namena = document.querySelector('input[name="namena"]:checked')?.value || '—';
-            const offerDate = document.getElementById('offer-date').value || '—';
-            const rok = document.getElementById('rok-realizacije').value || '—';
-            const napomena = document.getElementById('napomena').value || '';
-
-            let formattedDate = offerDate;
-            if (offerDate && offerDate !== '—') {
-                const d = new Date(offerDate);
-                formattedDate = `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}.`;
-            }
-
-            const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
-            const glassTotal = parseFloat(document.getElementById('glass-grand-total').textContent) || 0;
-            const subtotal = pergolaTotal + glassTotal;
-            const discType = document.getElementById('discount-type').value;
-            const discVal = parseFloat(document.getElementById('discount-value').value) || 0;
-            let discount = 0;
-            if (discVal > 0) discount = discType === 'percent' ? subtotal * (discVal / 100) : discVal;
-            const total = Math.max(0, subtotal - discount);
-
-            let text = `*PROHORECA AG GROUP*\n`;
-            text += `Ponuda - ${formattedDate}\n`;
-            text += `━━━━━━━━━━━━━━━━━━━━\n\n`;
-            text += `*Klijent:* ${clientName}\n`;
-            text += `*Tel:* ${clientPhone}\n`;
-            text += `*Lokacija:* ${clientLocation}\n`;
-            text += `*Namena:* ${namena}\n\n`;
-
-            if (pergolas.length > 0) {
+            const data = getOfferData();
+            const broj = currentOfferBroj || '—';
+            let text = `*${COMPANY_NAME}*\nPonuda br. ${broj} - ${data.formattedDate}\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+            text += `*Klijent:* ${data.clientName}\n*Tel:* ${data.clientPhone}\n*Lokacija:* ${data.clientLocation}\n*Namena:* ${data.namena}\n\n`;
+            if (data.pergoles.length > 0) {
                 text += `━━ *PERGOLE* ━━\n`;
-                pergolas.forEach((p, idx) => {
-                    const mount = document.querySelector(`input[name="p-mount-${p.id}"]:checked`)?.value || '—';
-                    const w = document.getElementById(`p-width-${p.id}`)?.value || '0';
-                    const d = document.getElementById(`p-depth-${p.id}`)?.value || '0';
-                    const area = ((parseFloat(w) * parseFloat(d)) / 10000).toFixed(2);
-                    const type = document.querySelector(`input[name="p-type-${p.id}"]:checked`)?.value || '—';
-                    const sides = document.getElementById(`p-sides-${p.id}`)?.value || '0';
-                    const totalP = document.getElementById(`p-total-${p.id}`)?.value || '0.00';
-                    text += `\n${idx + 1}. ${type} (${mount})\n`;
-                    text += `   ${w}×${d} cm = ${area} m²\n`;
-                    text += `   Zatvaranje: ${sides} strana\n`;
-                    text += `   *Cena: ${totalP} EUR*\n`;
+                data.pergoles.forEach((p, i) => {
+                    const area = ((parseFloat(p.sirina)*parseFloat(p.dubina))/10000).toFixed(2);
+                    text += `\n${i+1}. ${p.tip} (${p.montaza})\n   ${p.sirina}×${p.dubina} cm = ${area} m²\n   Zatvaranje: ${p.strane} strana\n   *Cena: ${parseFloat(p.cena).toFixed(2)} EUR*\n`;
                 });
-                text += `\n*Pergole ukupno: ${pergolaTotal.toFixed(2)} EUR*\n`;
-                text += `U cenu: motor, automatika, LED rasveta, montaža i transport.\n\n`;
+                text += `\n*Pergole ukupno: ${data.pergolaTotal.toFixed(2)} EUR*\nU cenu: motor, automatika, LED rasveta, montaža i transport.\n\n`;
             }
-
-            if (glasses.length > 0) {
+            if (data.stakla.length > 0) {
                 text += `━━ *STAKLENI SISTEMI* ━━\n`;
-                glasses.forEach((g, idx) => {
-                    const mount = document.querySelector(`input[name="g-mount-${g.id}"]:checked`)?.value || '—';
-                    const w = document.getElementById(`g-width-${g.id}`)?.value || '0';
-                    const h = document.getElementById(`g-height-${g.id}`)?.value || '0';
-                    const fields = document.getElementById(`g-fields-${g.id}`)?.value || '1';
-                    const area = document.getElementById(`g-area-${g.id}`)?.textContent || '0.00';
-                    const type = document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '—';
-                    const totalG = document.getElementById(`g-total-${g.id}`)?.value || '0.00';
-                    text += `\n${idx + 1}. ${type} (${mount})\n`;
-                    text += `   ${w}×${h} cm, ${fields} polja = ${area} m²\n`;
-                    text += `   *Cena: ${totalG} EUR*\n`;
+                data.stakla.forEach((g, i) => {
+                    const area = ((parseFloat(g.sirina)*parseFloat(g.visina)*parseFloat(g.polja))/10000).toFixed(2);
+                    text += `\n${i+1}. ${g.tip} (${g.montaza})\n   ${g.sirina}×${g.visina} cm, ${g.polja} polja = ${area} m²\n   *Cena: ${parseFloat(g.cena).toFixed(2)} EUR*\n`;
                 });
-                text += `\n*Staklo ukupno: ${glassTotal.toFixed(2)} EUR*\n`;
-                // Glass notes for WhatsApp
-                let txtHasSlajding = false, txtHasGiljotina = false;
-                glasses.forEach(g => {
-                    const gt = document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '';
-                    if (gt === 'Slajding') txtHasSlajding = true;
-                    if (gt === 'Giljotina') txtHasGiljotina = true;
-                });
-                if (txtHasSlajding && txtHasGiljotina) {
-                    text += `Slajding i giljotina: duplo staklo 4+14+4mm.\n`;
-                    text += `Giljotina: motor uključen u cenu.\n`;
-                } else if (txtHasSlajding) {
-                    text += `Slajding: duplo staklo 4+14+4mm.\n`;
-                } else if (txtHasGiljotina) {
-                    text += `Giljotina: duplo staklo 4+14+4mm, motor uključen.\n`;
-                }
+                text += `\n*Staklo ukupno: ${data.glassTotal.toFixed(2)} EUR*\n`;
+                const hasS = data.stakla.some(g => g.tip==='Slajding');
+                const hasG = data.stakla.some(g => g.tip==='Giljotina');
+                if (hasS && hasG) text += `Slajding i giljotina: duplo staklo 4+14+4mm.\nGiljotina: motor uključen u cenu.\n`;
+                else if (hasS) text += `Slajding: duplo staklo 4+14+4mm.\n`;
+                else if (hasG) text += `Giljotina: duplo staklo 4+14+4mm, motor uključen.\n`;
                 text += `Montaža i transport uračunati.\n\n`;
             }
-
-            text += `━━━━━━━━━━━━━━━━━━━━\n`;
-            text += `Međuzbir: ${subtotal.toFixed(2)} EUR\n`;
-            if (discount > 0) {
-                const discLabel = discType === 'percent' ? `${discVal}%` : `${discVal} EUR`;
-                text += `Popust (${discLabel}): -${discount.toFixed(2)} EUR\n`;
+            text += `━━━━━━━━━━━━━━━━━━━━\nMeđuzbir: ${data.subtotal.toFixed(2)} EUR\n`;
+            if (data.discount > 0) {
+                const dl = data.discType==='percent' ? `${data.discVal}%` : `${data.discVal} EUR`;
+                text += `Popust (${dl}): -${data.discount.toFixed(2)} EUR\n`;
             }
-            text += `\n*UKUPNO: ${total.toFixed(2)} EUR*\n\n`;
-            if (rok !== '—') text += `Rok realizacije: ${rok}\n`;
-            if (napomena) text += `Napomena: ${napomena}\n`;
-            text += `\nPonuda važi 7 dana.\n`;
-            text += `PROHORECA AG GROUP\nTel: 0648979242 - Aleksandar`;
-
-            navigator.clipboard.writeText(text).then(() => {
-                showToast('Tekst kopiran!');
-            }).catch(() => {
-                // Fallback
+            text += `\n*UKUPNO: ${data.total.toFixed(2)} EUR*\n\n`;
+            if (data.rok !== '—') text += `Rok realizacije: ${data.rok}\n`;
+            if (data.napomena) text += `Napomena: ${data.napomena}\n`;
+            text += `\nPonuda važi ${OFFER_VALID_DAYS} dana.\n${COMPANY_NAME}\nTel: ${CONTACT_PHONE} - ${CONTACT_NAME}`;
+            navigator.clipboard.writeText(text).then(() => showToast('Tekst kopiran!')).catch(() => {
                 const ta = document.createElement('textarea');
-                ta.value = text;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
+                ta.value = text; document.body.appendChild(ta); ta.select();
+                document.execCommand('copy'); document.body.removeChild(ta);
                 showToast('Tekst kopiran!');
             });
         }
 
         // ===== EMAIL =====
-        function showEmailOverlay() {
-            document.getElementById('email-overlay').classList.add('show');
-        }
-
-        function hideEmailOverlay() {
-            document.getElementById('email-overlay').classList.remove('show');
-        }
-
+        function showEmailOverlay() { document.getElementById('email-overlay').classList.add('show'); }
+        function hideEmailOverlay() { document.getElementById('email-overlay').classList.remove('show'); }
         function sendEmail() {
             const emailTo = document.getElementById('email-to').value;
-            if (!emailTo) {
-                showToast('Unesite email adresu');
-                return;
-            }
-
-            const clientName = document.getElementById('client-name').value || 'Klijent';
-            const offerDate = document.getElementById('offer-date').value || '';
-            const subject = `Ponuda - PROHORECA AG GROUP - ${clientName}`;
-
-            // Get text version for email body
-            const previewBox = document.getElementById('preview-box');
-            const body = previewBox?.innerText || 'Ponuda u prilogu';
-
-            const mailtoLink = `mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            window.location.href = mailtoLink;
+            if (!emailTo) { showToast('Unesite email adresu'); return; }
+            const data = getOfferData();
+            const subject = `Ponuda - ${COMPANY_NAME} - ${data.clientName}`;
+            const body = document.getElementById('preview-box')?.innerText || 'Ponuda u prilogu';
+            window.location.href = `mailto:${emailTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
             hideEmailOverlay();
             showToast('Email klijent otvoren');
         }
@@ -2185,16 +2070,12 @@
             document.getElementById('discount-value').value = '';
             document.getElementById('rok-realizacije').value = '';
             document.getElementById('napomena').value = '';
-            pergolas = [];
-            glasses = [];
-            pergolaIdCounter = 0;
-            glassIdCounter = 0;
-            renderPergolas();
-            renderGlasses();
-            calcAllPergolas();
-            calcAllGlasses();
-            calcSummary();
+            pergolas = []; glasses = [];
+            pergolaIdCounter = 0; glassIdCounter = 0;
+            renderPergolas(); renderGlasses();
+            calcAllPergolas(); calcAllGlasses(); calcSummary();
             document.getElementById('preview-container').style.display = 'none';
+            localStorage.removeItem('ag_current_state');
             switchTab('klijent');
             showToast('Nova ponuda spremna');
         }
@@ -2207,16 +2088,8 @@
             setTimeout(() => toast.classList.remove('show'), 2500);
         }
 
-        function saveState() {
-            // placeholder for future persistence
-        }
-
         function savePriceLS(key, val) {
             if (val) localStorage.setItem(key, val);
-        }
-
-        function loadSavedPrices() {
-            // Prices are loaded when items are added
         }
 
         // ===== ARHIVA =====
@@ -2226,92 +2099,29 @@
         }
 
         function saveToArchive() {
+            if (!validateOffer()) return;
+            if (!currentOfferBroj) currentOfferBroj = getNextOfferNumber();
             calcSummary();
-
-            const broj = currentOfferBroj || Date.now().toString().slice(-6);
-            currentOfferBroj = broj;
-
-            const clientName   = document.getElementById('client-name').value || '—';
-            const clientPhone  = document.getElementById('client-phone').value || '—';
-            const clientLocation = document.getElementById('client-location').value || '—';
-            const namena       = document.querySelector('input[name="namena"]:checked')?.value || '—';
-            const offerDate    = document.getElementById('offer-date').value || '';
-            const rok          = document.getElementById('rok-realizacije').value || '—';
-            const napomena     = document.getElementById('napomena').value || '';
-
-            let formattedDate = offerDate;
-            if (offerDate) {
-                const d = new Date(offerDate);
-                formattedDate = `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}.${d.getFullYear()}.`;
-            }
-
-            const pergolaTotal = parseFloat(document.getElementById('pergola-grand-total').textContent) || 0;
-            const glassTotal   = parseFloat(document.getElementById('glass-grand-total').textContent) || 0;
-            const subtotal     = pergolaTotal + glassTotal;
-            const discType     = document.getElementById('discount-type').value;
-            const discVal      = parseFloat(document.getElementById('discount-value').value) || 0;
-            let discount = 0;
-            if (discVal > 0) discount = discType === 'percent' ? subtotal * (discVal / 100) : discVal;
-            const total = Math.max(0, subtotal - discount);
-
-            const pergoleSummary = pergolas.map(p => ({
-                tip:    document.querySelector(`input[name="p-type-${p.id}"]:checked`)?.value || '—',
-                montaza: document.querySelector(`input[name="p-mount-${p.id}"]:checked`)?.value || '—',
-                sirina: document.getElementById(`p-width-${p.id}`)?.value || '0',
-                dubina: document.getElementById(`p-depth-${p.id}`)?.value || '0',
-                strane: document.getElementById(`p-sides-${p.id}`)?.value || '0',
-                cena:   parseFloat(document.getElementById(`p-total-${p.id}`)?.value) || 0
-            }));
-
-            const staklaSummary = glasses.map(g => ({
-                tip:    document.querySelector(`input[name="g-type-${g.id}"]:checked`)?.value || '—',
-                montaza: document.querySelector(`input[name="g-mount-${g.id}"]:checked`)?.value || '—',
-                sirina: document.getElementById(`g-width-${g.id}`)?.value || '0',
-                visina: document.getElementById(`g-height-${g.id}`)?.value || '0',
-                polja:  document.getElementById(`g-fields-${g.id}`)?.value || '1',
-                cena:   parseFloat(document.getElementById(`g-total-${g.id}`)?.value) || 0
-            }));
-
+            const data = getOfferData();
             const offer = {
-                id:             Date.now(),
-                broj,
-                datum:          formattedDate,
-                klijent:        clientName,
-                telefon:        clientPhone,
-                lokacija:       clientLocation,
-                namena,
-                ukupno:         total,
-                pergoleUkupno:  pergolaTotal,
-                stakloUkupno:   glassTotal,
-                popust:         discount,
-                discType,
-                discVal,
-                rok,
-                napomena,
-                status:         'nije_poslato',
-                pergole:        pergoleSummary,
-                stakla:         staklaSummary,
-                savedAt:        new Date().toISOString()
+                id: Date.now(), broj: currentOfferBroj,
+                datum: data.formattedDate, klijent: data.clientName,
+                telefon: data.clientPhone, lokacija: data.clientLocation,
+                namena: data.namena, ukupno: data.total,
+                pergoleUkupno: data.pergolaTotal, stakloUkupno: data.glassTotal,
+                popust: data.discount, discType: data.discType, discVal: data.discVal,
+                rok: data.rok, napomena: data.napomena,
+                status: 'nije_poslato',
+                pergole: data.pergoles, stakla: data.stakla,
+                savedAt: new Date().toISOString()
             };
-
             const archive = getArchive();
-            const existingIdx = archive.findIndex(a => a.broj === broj);
-            if (existingIdx >= 0) {
-                offer.id     = archive[existingIdx].id;
-                offer.status = archive[existingIdx].status;
-                archive[existingIdx] = offer;
-            } else {
-                archive.unshift(offer);
-            }
-
+            const ei = archive.findIndex(a => a.broj === offer.broj);
+            if (ei >= 0) { offer.id = archive[ei].id; offer.status = archive[ei].status; archive[ei] = offer; }
+            else archive.unshift(offer);
             localStorage.setItem('ag_archive', JSON.stringify(archive));
-
-            // Update button
             const btn = document.getElementById('btn-save-archive');
-            if (btn) {
-                btn.textContent = '✓ Sačuvano u arhivu';
-                btn.style.cssText = 'background:linear-gradient(135deg,#388e3c,#2e7d32);color:white';
-            }
+            if (btn) { btn.textContent = '✓ Sačuvano u arhivu'; btn.style.cssText = 'background:linear-gradient(135deg,#388e3c,#2e7d32);color:white'; }
             showToast('Ponuda sačuvana u arhivu ✓');
         }
 
@@ -2323,174 +2133,134 @@
         }
 
         function renderArchive() {
-            const archive  = getArchive();
-            let filtered;
-            if (archiveFilter === 'sve')      filtered = archive;
-            else if (archiveFilter === 'nije') filtered = archive.filter(a => a.status === 'nije_poslato');
-            else                               filtered = archive.filter(a => a.status === 'poslato');
-
+            const archive = getArchive();
+            const search = (document.getElementById('archive-search')?.value || '').toLowerCase().trim();
+            let filtered = archiveFilter === 'nije' ? archive.filter(a => a.status==='nije_poslato')
+                         : archiveFilter === 'poslato' ? archive.filter(a => a.status==='poslato')
+                         : archive;
+            if (search) filtered = filtered.filter(a =>
+                a.klijent.toLowerCase().includes(search) ||
+                (a.lokacija||'').toLowerCase().includes(search) ||
+                (a.telefon||'').includes(search) ||
+                (a.broj||'').toLowerCase().includes(search)
+            );
             document.getElementById('stat-ukupno').textContent  = archive.length;
-            document.getElementById('stat-poslato').textContent = archive.filter(a => a.status === 'poslato').length;
-            document.getElementById('stat-nije').textContent    = archive.filter(a => a.status === 'nije_poslato').length;
-
+            document.getElementById('stat-poslato').textContent = archive.filter(a => a.status==='poslato').length;
+            document.getElementById('stat-nije').textContent    = archive.filter(a => a.status==='nije_poslato').length;
             const container = document.getElementById('archive-list');
-
             if (filtered.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-archive">
-                        <div class="empty-icon">📂</div>
-                        ${archiveFilter === 'sve'
-                            ? 'Arhiva je prazna.<br>Generiši ponudu i klikni<br><strong>💾 Sačuvaj u arhivu</strong>.'
-                            : 'Nema ponuda u ovoj kategoriji.'}
-                    </div>`;
+                container.innerHTML = `<div class="empty-archive"><div class="empty-icon">📂</div>${
+                    archiveFilter==='sve' && !search
+                        ? 'Arhiva je prazna.<br>Generiši ponudu i klikni<br><strong>💾 Sačuvaj u arhivu</strong>.'
+                        : 'Nema ponuda koje odgovaraju pretrazi.'
+                }</div>`;
                 return;
             }
-
             container.innerHTML = filtered.map(o => `
                 <div class="archive-card">
                     <div class="archive-card-header">
                         <div>
-                            <div class="archive-client">${o.klijent}</div>
-                            <div class="archive-meta">📍 ${o.lokacija} &nbsp;·&nbsp; 📅 ${o.datum}</div>
+                            <div class="archive-client">${escapeHtml(o.klijent)}</div>
+                            <div class="archive-meta">📍 ${escapeHtml(o.lokacija||'')} &nbsp;·&nbsp; 📅 ${o.datum} &nbsp;·&nbsp; <small>${o.broj||''}</small></div>
                         </div>
-                        <span class="${o.status === 'poslato' ? 'badge-poslato' : 'badge-nije'}">
-                            ${o.status === 'poslato' ? '✓ Poslato' : '⏳ Nije poslato'}
-                        </span>
+                        <span class="${o.status==='poslato'?'badge-poslato':'badge-nije'}">${o.status==='poslato'?'✓ Poslato':'⏳ Nije'}</span>
                     </div>
                     <div class="archive-total">${o.ukupno.toFixed(2)} EUR</div>
                     <div class="archive-details">
-                        ${o.pergole.length > 0 ? `🏠 ${o.pergole.length} pergola` : ''}${o.pergole.length > 0 && o.stakla.length > 0 ? ' &nbsp;·&nbsp; ' : ''}${o.stakla.length > 0 ? `🪟 ${o.stakla.length} stakleni sistem` : ''}
-                        ${o.napomena ? `<br>💬 ${o.napomena.substring(0, 50)}${o.napomena.length > 50 ? '...' : ''}` : ''}
-                        ${o.rok && o.rok !== '—' ? `<br>⏱ Rok: ${o.rok}` : ''}
+                        ${o.pergole.length>0?`🏠 ${o.pergole.length} pergola`:''}${o.pergole.length>0&&o.stakla.length>0?' &nbsp;·&nbsp; ':''}${o.stakla.length>0?`🪟 ${o.stakla.length} stakleni sistem`:''}
+                        ${o.napomena?`<br>💬 ${escapeHtml(o.napomena.substring(0,50))}${o.napomena.length>50?'...':''}` :''}
+                        ${o.rok&&o.rok!=='—'?`<br>⏱ Rok: ${escapeHtml(o.rok)}`:''}
                     </div>
                     <div class="archive-actions">
-                        <button class="btn-arc btn-arc-sent" style="background:rgba(212,165,116,0.12);border:1px solid rgba(212,165,116,0.4);color:var(--accent);"
-                            onclick="viewArchiveOffer(${o.id})">
-                            👁 Prikaži ponudu
-                        </button>
-                        <button class="btn-arc ${o.status === 'poslato' ? 'btn-arc-unsent' : 'btn-arc-sent'}"
-                            onclick="toggleArchiveStatus(${o.id})">
-                            ${o.status === 'poslato' ? '↩ Nije' : '✓ Poslato'}
-                        </button>
+                        <button class="btn-arc" style="background:rgba(212,165,116,0.12);border:1px solid rgba(212,165,116,0.4);color:var(--accent);" onclick="viewArchiveOffer(${o.id})">👁 Prikaži</button>
+                        <button class="btn-arc ${o.status==='poslato'?'btn-arc-unsent':'btn-arc-sent'}" onclick="toggleArchiveStatus(${o.id})">${o.status==='poslato'?'↩ Nije':'✓ Poslato'}</button>
                         <button class="btn-arc-delete" onclick="deleteFromArchive(${o.id})">🗑</button>
                     </div>
-                </div>
-            `).join('');
+                </div>`).join('');
         }
 
         function toggleArchiveStatus(id) {
             const archive = getArchive();
-            const offer   = archive.find(a => a.id === id);
+            const offer = archive.find(a => a.id===id);
             if (!offer) return;
-            offer.status = offer.status === 'poslato' ? 'nije_poslato' : 'poslato';
+            offer.status = offer.status==='poslato' ? 'nije_poslato' : 'poslato';
             localStorage.setItem('ag_archive', JSON.stringify(archive));
             renderArchive();
-            showToast(offer.status === 'poslato' ? '✓ Označeno kao poslato' : 'Označeno kao nije poslato');
+            showToast(offer.status==='poslato' ? '✓ Označeno kao poslato' : 'Označeno kao nije poslato');
         }
 
         function deleteFromArchive(id) {
             if (!confirm('Obrisati ovu ponudu iz arhive?')) return;
-            let archive = getArchive().filter(a => a.id !== id);
-            localStorage.setItem('ag_archive', JSON.stringify(archive));
+            localStorage.setItem('ag_archive', JSON.stringify(getArchive().filter(a => a.id!==id)));
             renderArchive();
             showToast('Ponuda obrisana');
         }
 
+        // ===== ARCHIVE EXPORT / IMPORT =====
+        function exportArchive() {
+            const archive = getArchive();
+            if (!archive.length) { showToast('Arhiva je prazna'); return; }
+            const blob = new Blob([JSON.stringify(archive, null, 2)], {type:'application/json'});
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href = url;
+            a.download = `arhiva_ponuda_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Arhiva izvezena');
+        }
+
+        function importArchive() {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = '.json';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    try {
+                        const imported = JSON.parse(ev.target.result);
+                        if (!Array.isArray(imported)) throw new Error();
+                        const existing = getArchive();
+                        const ids = new Set(existing.map(a => a.broj));
+                        let added = 0;
+                        imported.forEach(o => { if (!ids.has(o.broj)) { existing.push(o); added++; } });
+                        localStorage.setItem('ag_archive', JSON.stringify(existing));
+                        renderArchive();
+                        showToast(`Uvezeno ${added} ponuda`);
+                    } catch { showToast('Greška pri uvoženju fajla'); }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        // ===== ARCHIVE MODAL =====
         let modalOfferId = null;
 
         function viewArchiveOffer(id) {
-            const offer = getArchive().find(a => a.id === id);
+            const offer = getArchive().find(a => a.id===id);
             if (!offer) return;
             modalOfferId = id;
-
-            // Build pergola rows
-            let pergolaRows = '';
-            offer.pergole.forEach((p, idx) => {
-                const area = ((parseFloat(p.sirina) * parseFloat(p.dubina)) / 10000).toFixed(2);
-                pergolaRows += `
-                    <tr>
-                        <td>${idx + 1}</td>
-                        <td>${p.tip}<br><small style="color:#888">${p.montaza}</small></td>
-                        <td>${p.sirina}×${p.dubina} cm<br><small style="color:#888">${area} m²</small></td>
-                        <td>${p.strane}</td>
-                        <td style="text-align:right;font-weight:700;">${parseFloat(p.cena).toFixed(2)} €</td>
-                    </tr>`;
-            });
-
-            // Build glass rows
-            let glassRows = '';
-            offer.stakla.forEach((g, idx) => {
-                const area = ((parseFloat(g.sirina) * parseFloat(g.visina) * parseFloat(g.polja)) / 10000).toFixed(2);
-                glassRows += `
-                    <tr>
-                        <td>${idx + 1}</td>
-                        <td>${g.tip}<br><small style="color:#888">${g.montaza}</small></td>
-                        <td>${g.sirina}×${g.visina} cm<br><small style="color:#888">${area} m², ${g.polja} polja</small></td>
-                        <td style="text-align:right;font-weight:700;">${parseFloat(g.cena).toFixed(2)} €</td>
-                    </tr>`;
-            });
-
-            let discountLine = '';
-            if (offer.popust > 0) {
-                const discLabel = offer.discType === 'percent' ? `${offer.discVal}%` : `${offer.discVal} EUR`;
-                discountLine = `<div style="text-align:right;color:#e74c3c;font-size:14px;">Popust (${discLabel}): -${offer.popust.toFixed(2)} EUR</div>`;
-            }
-
-            const html = `
-                <h2>PROHORECA AG GROUP</h2>
-                <h3>Ponuda br. ${offer.broj}</h3>
-                <div style="font-size:13px;margin-bottom:12px;">
-                    <strong>Datum:</strong> ${offer.datum}<br>
-                    <strong>Klijent:</strong> ${offer.klijent}<br>
-                    <strong>Telefon:</strong> ${offer.telefon}<br>
-                    <strong>Lokacija:</strong> ${offer.lokacija}<br>
-                    <strong>Namena:</strong> ${offer.namena}
-                </div>
-                ${offer.pergole.length > 0 ? `
-                <div class="section-header">PERGOLE</div>
-                <table>
-                    <tr><th>#</th><th>Tip</th><th>Dimenzije</th><th>Strane</th><th style="text-align:right;">Cena</th></tr>
-                    ${pergolaRows}
-                </table>
-                <div style="text-align:right;font-weight:700;margin:8px 0;">Pergole ukupno: ${offer.pergoleUkupno.toFixed(2)} EUR</div>
-                <div style="font-size:12px;color:#666;background:#f8f5f0;padding:8px 10px;border-radius:6px;margin:8px 0;line-height:1.6;">
-                    U cenu je uključeno: motor, automatika i LED rasveta.<br>Montaža i transport do gradilišta su uračunati.
-                </div>` : ''}
-                ${offer.stakla.length > 0 ? `
-                <div class="section-header">STAKLENI SISTEMI</div>
-                <table>
-                    <tr><th>#</th><th>Tip</th><th>Dimenzije</th><th style="text-align:right;">Cena</th></tr>
-                    ${glassRows}
-                </table>
-                <div style="text-align:right;font-weight:700;margin:8px 0;">Staklo ukupno: ${offer.stakloUkupno.toFixed(2)} EUR</div>
-                <div style="font-size:12px;color:#666;background:#f8f5f0;padding:8px 10px;border-radius:6px;margin:8px 0;line-height:1.6;">
-                    Montaža i transport do gradilišta su uračunati.
-                </div>` : ''}
-                <div style="margin-top:16px;padding-top:12px;border-top:1px solid #ddd;">
-                    <div style="text-align:right;font-size:14px;">Međuzbir: ${(offer.pergoleUkupno + offer.stakloUkupno).toFixed(2)} EUR</div>
-                    ${discountLine}
-                </div>
-                <div class="total-line">UKUPNO: ${offer.ukupno.toFixed(2)} EUR</div>
-                ${offer.rok && offer.rok !== '—' ? `<div style="margin-top:12px;font-size:13px;"><strong>Rok realizacije:</strong> ${offer.rok}</div>` : ''}
-                ${offer.napomena ? `<div style="margin-top:8px;font-size:13px;"><strong>Napomena:</strong> ${offer.napomena}</div>` : ''}
-                <div class="footer-note">
-                    PROHORECA AG GROUP | Tel: 0648979242 - Aleksandar<br>
-                    Ponuda važi 7 dana od datuma izdavanja.
-                </div>`;
-
-            document.getElementById('arc-preview-box').innerHTML = html;
-            document.getElementById('arc-modal-title').textContent = `Ponuda — ${offer.klijent}`;
-
-            // Update status button
+            const data = {
+                clientName: offer.klijent, clientPhone: offer.telefon,
+                clientLocation: offer.lokacija, namena: offer.namena,
+                formattedDate: offer.datum, rok: offer.rok||'—', napomena: offer.napomena||'',
+                pergolaTotal: offer.pergoleUkupno, glassTotal: offer.stakloUkupno,
+                subtotal: offer.pergoleUkupno + offer.stakloUkupno,
+                discType: offer.discType, discVal: offer.discVal, discount: offer.popust,
+                total: offer.ukupno, pergoles: offer.pergole, stakla: offer.stakla
+            };
+            document.getElementById('arc-preview-box').innerHTML = buildOfferHtml(data, offer.broj);
+            document.getElementById('arc-modal-title').textContent = `Ponuda — ${escapeHtml(offer.klijent)}`;
             const btnStatus = document.getElementById('arc-btn-status');
-            if (offer.status === 'poslato') {
+            if (offer.status==='poslato') {
                 btnStatus.textContent = '↩ Nije poslato';
                 btnStatus.style.cssText = 'background:rgba(255,152,0,0.15);border:1px solid rgba(255,152,0,0.4);color:#ff9800;flex:1;padding:13px 8px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;';
             } else {
                 btnStatus.textContent = '✓ Označi poslato';
                 btnStatus.style.cssText = 'background:rgba(76,175,80,0.15);border:1px solid rgba(76,175,80,0.4);color:#4caf50;flex:1;padding:13px 8px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;';
             }
-
             document.getElementById('arc-modal').classList.add('show');
         }
 
@@ -2502,47 +2272,79 @@
         function toggleStatusFromModal() {
             if (!modalOfferId) return;
             toggleArchiveStatus(modalOfferId);
-            // Re-open with updated status
             viewArchiveOffer(modalOfferId);
+        }
+
+        function loadOfferFromArchive() {
+            if (!modalOfferId) return;
+            const offer = getArchive().find(a => a.id===modalOfferId);
+            if (!offer) return;
+            if (!confirm('Učitati ovu ponudu u formu? Trenutni unosi će biti zamenjeni.')) return;
+            closeArchiveModal();
+            document.getElementById('client-name').value     = offer.klijent!=='—' ? offer.klijent : '';
+            document.getElementById('client-phone').value    = offer.telefon!=='—' ? offer.telefon : '';
+            document.getElementById('client-location').value = offer.lokacija!=='—' ? offer.lokacija : '';
+            document.getElementById('rok-realizacije').value = offer.rok!=='—' ? offer.rok : '';
+            document.getElementById('napomena').value        = offer.napomena || '';
+            const namenaEl = document.querySelector(`input[name="namena"][value="${offer.namena}"]`);
+            if (namenaEl) namenaEl.checked = true;
+            document.getElementById('discount-type').value  = offer.discType || 'percent';
+            document.getElementById('discount-value').value = offer.discVal > 0 ? offer.discVal : '';
+            pergolaIdCounter = 0; glassIdCounter = 0;
+            pergolas = offer.pergole.map(p => ({
+                id: ++pergolaIdCounter,
+                montaza: p.montaza||'Naslonjena na objekat',
+                sirina: p.sirina||'', dubina: p.dubina||'',
+                visina: p.visina||'250', tip: p.tip||'Ceradno platno',
+                strane: p.strane||'0', cenaM2: '', cenaZatvM2: '',
+                total: p.cena||0, manualTotal: true
+            }));
+            glasses = offer.stakla.map(g => ({
+                id: ++glassIdCounter,
+                montaza: g.montaza||'Ispod pergole', strane: g.strane||'1',
+                sirina: g.sirina||'', visina: g.visina||'',
+                polja: g.polja||'1', tip: g.tip||'Slajding',
+                cenaM2: '', total: g.cena||0, manualTotal: true
+            }));
+            currentOfferBroj = offer.broj;
+            renderPergolas(); renderGlasses();
+            calcAllPergolas(); calcAllGlasses(); calcSummary();
+            saveState();
+            switchTab('klijent');
+            showToast('Ponuda učitana u formu');
         }
 
         function copyArchiveText() {
             if (!modalOfferId) return;
-            const offer = getArchive().find(a => a.id === modalOfferId);
+            const offer = getArchive().find(a => a.id===modalOfferId);
             if (!offer) return;
-
-            let text = `*PROHORECA AG GROUP*\nPonuda br. ${offer.broj} - ${offer.datum}\n`;
-            text += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+            let text = `*${COMPANY_NAME}*\nPonuda br. ${offer.broj} - ${offer.datum}\n━━━━━━━━━━━━━━━━━━━━\n\n`;
             text += `*Klijent:* ${offer.klijent}\n*Tel:* ${offer.telefon}\n*Lokacija:* ${offer.lokacija}\n*Namena:* ${offer.namena}\n\n`;
-
             if (offer.pergole.length > 0) {
                 text += `━━ *PERGOLE* ━━\n`;
-                offer.pergole.forEach((p, idx) => {
-                    const area = ((parseFloat(p.sirina) * parseFloat(p.dubina)) / 10000).toFixed(2);
-                    text += `\n${idx + 1}. ${p.tip} (${p.montaza})\n   ${p.sirina}×${p.dubina} cm = ${area} m²\n   Zatvaranje: ${p.strane} strana\n   *Cena: ${parseFloat(p.cena).toFixed(2)} EUR*\n`;
+                offer.pergole.forEach((p, i) => {
+                    const area = ((parseFloat(p.sirina)*parseFloat(p.dubina))/10000).toFixed(2);
+                    text += `\n${i+1}. ${p.tip} (${p.montaza})\n   ${p.sirina}×${p.dubina} cm = ${area} m²\n   Zatvaranje: ${p.strane} strana\n   *Cena: ${parseFloat(p.cena).toFixed(2)} EUR*\n`;
                 });
                 text += `\n*Pergole ukupno: ${offer.pergoleUkupno.toFixed(2)} EUR*\n\n`;
             }
-
             if (offer.stakla.length > 0) {
                 text += `━━ *STAKLENI SISTEMI* ━━\n`;
-                offer.stakla.forEach((g, idx) => {
-                    const area = ((parseFloat(g.sirina) * parseFloat(g.visina) * parseFloat(g.polja)) / 10000).toFixed(2);
-                    text += `\n${idx + 1}. ${g.tip} (${g.montaza})\n   ${g.sirina}×${g.visina} cm, ${g.polja} polja = ${area} m²\n   *Cena: ${parseFloat(g.cena).toFixed(2)} EUR*\n`;
+                offer.stakla.forEach((g, i) => {
+                    const area = ((parseFloat(g.sirina)*parseFloat(g.visina)*parseFloat(g.polja))/10000).toFixed(2);
+                    text += `\n${i+1}. ${g.tip} (${g.montaza})\n   ${g.sirina}×${g.visina} cm, ${g.polja} polja = ${area} m²\n   *Cena: ${parseFloat(g.cena).toFixed(2)} EUR*\n`;
                 });
                 text += `\n*Staklo ukupno: ${offer.stakloUkupno.toFixed(2)} EUR*\n\n`;
             }
-
             text += `━━━━━━━━━━━━━━━━━━━━\n`;
             if (offer.popust > 0) {
-                const discLabel = offer.discType === 'percent' ? `${offer.discVal}%` : `${offer.discVal} EUR`;
-                text += `Popust (${discLabel}): -${offer.popust.toFixed(2)} EUR\n`;
+                const dl = offer.discType==='percent' ? `${offer.discVal}%` : `${offer.discVal} EUR`;
+                text += `Popust (${dl}): -${offer.popust.toFixed(2)} EUR\n`;
             }
             text += `\n*UKUPNO: ${offer.ukupno.toFixed(2)} EUR*\n`;
-            if (offer.rok && offer.rok !== '—') text += `Rok realizacije: ${offer.rok}\n`;
+            if (offer.rok && offer.rok!=='—') text += `Rok realizacije: ${offer.rok}\n`;
             if (offer.napomena) text += `Napomena: ${offer.napomena}\n`;
-            text += `\nPonuda važi 7 dana.\nPROHORECA AG GROUP | Tel: 0648979242 - Aleksandar`;
-
+            text += `\nPonuda važi ${OFFER_VALID_DAYS} dana.\n${COMPANY_NAME} | Tel: ${CONTACT_PHONE} - ${CONTACT_NAME}`;
             navigator.clipboard.writeText(text).then(() => showToast('Tekst kopiran!')).catch(() => {
                 const ta = document.createElement('textarea');
                 ta.value = text; document.body.appendChild(ta); ta.select();
