@@ -7,6 +7,46 @@ session_start();
 
 $action = $_GET['action'] ?? '';
 
+// Konverzija u EUR — dokumenti u RSD nose svoj kurs; ako ga nemaju, kurs iz podesavanja
+function to_eur(float $iznos, string $valuta, float $kurs, float $fallbackKurs): float {
+    if ($valuta === 'EUR') return $iznos;
+    $k = $kurs > 1 ? $kurs : $fallbackKurs;
+    return $k > 0 ? $iznos / $k : $iznos;
+}
+
+// Objedinjeni ugovori: prihvacene ponude + samostalni racuni (pravna lica bez ponude).
+// Uplate na povezanim dokumentima (predracun/avansni/faktura iz ponude) racunaju se ugovoru-roditelju.
+function contracts_rows(): array {
+    $rows = db()->query(
+        "SELECT d.id, d.type, d.oznaka, d.datum, d.valuta, d.kurs, d.total, d.status, d.rok,
+                c.naziv AS klijent, c.tip AS klijent_tip, c.mesto AS klijent_mesto, c.telefon AS klijent_tel
+         FROM documents d LEFT JOIN clients c ON c.id = d.client_id
+         WHERE (d.type = 'ponuda' AND d.status IN ('prihvaceno','zavrseno'))
+            OR (d.type IN ('predracun','avansni','faktura') AND d.parent_id IS NULL AND d.status <> 'storniran')
+         ORDER BY FIELD(d.status,'prihvaceno','izdat','zavrseno','placen'), d.id DESC"
+    )->fetchAll();
+    if (!$rows) return [];
+
+    $fallback = (float)(get_all_settings()['kurs_eur'] ?? 117.2);
+    $pays = db()->query(
+        "SELECT COALESCE(pd.parent_id, pd.id) AS cid, p.iznos, p.valuta, pd.kurs
+         FROM payments p JOIN documents pd ON pd.id = p.document_id"
+    )->fetchAll();
+    $paidEur = [];
+    foreach ($pays as $p) {
+        $paidEur[$p['cid']] = ($paidEur[$p['cid']] ?? 0.0)
+            + to_eur((float)$p['iznos'], $p['valuta'], (float)$p['kurs'], $fallback);
+    }
+    foreach ($rows as &$r) {
+        $eur  = $paidEur[$r['id']] ?? 0.0;
+        $kurs = (float)$r['kurs'] > 1 ? (float)$r['kurs'] : $fallback;
+        $r['total_eur']    = round($r['valuta'] === 'EUR' ? (float)$r['total'] : (float)$r['total'] / $kurs, 2);
+        $r['uplaceno_eur'] = round($eur, 2);
+        $r['uplaceno']     = round($r['valuta'] === 'EUR' ? $eur : $eur * $kurs, 2);
+    }
+    return $rows;
+}
+
 try {
     switch ($action) {
 
@@ -239,8 +279,19 @@ try {
         // ---------- PAYMENTS ----------
         case 'payments_list': {
             require_login();
+            $docId = (int)($_GET['doc_id'] ?? 0);
+            if (!empty($_GET['family'])) {
+                // uplate na samom dokumentu + na svim dokumentima nastalim iz njega
+                $st = db()->prepare(
+                    'SELECT p.*, pd.oznaka AS doc_oznaka, pd.type AS doc_type, pd.valuta AS doc_valuta, pd.kurs AS doc_kurs
+                     FROM payments p JOIN documents pd ON pd.id = p.document_id
+                     WHERE pd.id = ? OR pd.parent_id = ?
+                     ORDER BY p.datum, p.id');
+                $st->execute([$docId, $docId]);
+                json_out($st->fetchAll());
+            }
             $st = db()->prepare('SELECT * FROM payments WHERE document_id = ? ORDER BY datum, id');
-            $st->execute([(int)($_GET['doc_id'] ?? 0)]);
+            $st->execute([$docId]);
             json_out($st->fetchAll());
         }
 
@@ -261,18 +312,10 @@ try {
             json_out(['ok' => true]);
         }
 
-        // ---------- UGOVORI (prihvacene ponude + uplate) ----------
+        // ---------- UGOVORI (prihvacene ponude + samostalni racuni + uplate) ----------
         case 'contracts_list': {
             require_login();
-            $rows = db()->query(
-                "SELECT d.id, d.oznaka, d.datum, d.valuta, d.total, d.status, d.rok,
-                        c.naziv AS klijent, c.mesto AS klijent_mesto, c.telefon AS klijent_tel,
-                        COALESCE((SELECT SUM(p.iznos) FROM payments p WHERE p.document_id = d.id), 0) AS uplaceno
-                 FROM documents d LEFT JOIN clients c ON c.id = d.client_id
-                 WHERE d.type = 'ponuda' AND d.status IN ('prihvaceno','zavrseno')
-                 ORDER BY FIELD(d.status,'prihvaceno','zavrseno'), d.id DESC"
-            )->fetchAll();
-            json_out($rows);
+            json_out(contracts_rows());
         }
 
         case 'dashboard': {
@@ -281,11 +324,18 @@ try {
             $row = db()->query(
                 "SELECT
                     (SELECT COUNT(*) FROM documents WHERE type='ponuda' AND godina=$g) AS ponuda_br,
-                    (SELECT COUNT(*) FROM documents WHERE type='ponuda' AND status='poslato') AS na_cekanju,
-                    (SELECT COUNT(*) FROM documents WHERE type='ponuda' AND status='prihvaceno') AS aktivni_ugovori,
-                    (SELECT COALESCE(SUM(total),0) FROM documents WHERE type='ponuda' AND status IN ('prihvaceno','zavrseno') AND godina=$g) AS ugovoreno,
-                    (SELECT COALESCE(SUM(p.iznos),0) FROM payments p JOIN documents d ON d.id=p.document_id WHERE d.godina=$g) AS naplaceno"
+                    (SELECT COUNT(*) FROM documents WHERE type='ponuda' AND status='poslato') AS na_cekanju"
             )->fetch();
+            $ug = 0.0; $na = 0.0; $akt = 0;
+            foreach (contracts_rows() as $r) {
+                $ug += $r['total_eur'];
+                $na += $r['uplaceno_eur'];
+                if (in_array($r['status'], ['prihvaceno','izdat'])) $akt++;
+            }
+            $row['aktivni_ugovori'] = $akt;
+            $row['ugovoreno']    = round($ug, 2);
+            $row['naplaceno']    = round($na, 2);
+            $row['potrazivanje'] = round($ug - $na, 2);
             json_out($row);
         }
 

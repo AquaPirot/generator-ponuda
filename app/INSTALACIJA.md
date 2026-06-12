@@ -51,7 +51,7 @@ U cPanel-u otvori **SSL/TLS Status** i uključi **AutoSSL** za `ponude.aggroup.r
 | **Dokumenti** | Sve ponude, predračuni, avansni računi i fakture na jednom mestu |
 | **Link za klijenta** | Dugme "🔗 Link" — pošalji preko Vibera/WhatsApp-a, klijent otvara lepu stranicu |
 | **Konverzija** | Iz ponude jednim klikom: Predračun / Avansni račun / Faktura (EUR ili RSD) |
-| **Ugovori** | Prihvaćene ponude + evidencija uplata + koliko je preostalo |
+| **Ugovori** | Prihvaćene ponude i izdati računi (i pravna lica) — uplate i potraživanja, pojedinačno i ukupno |
 | **PDF** | Sa pravim srpskim slovima (š, đ, č, ć, ž) |
 
 ## Napomena o fakturama (SEF)

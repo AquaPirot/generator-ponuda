@@ -124,7 +124,7 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
 <!-- ===== UGOVORI ===== -->
 <div id="tab-ugovori" class="section">
-    <h2 class="section-title">Ugovori — realizacija</h2>
+    <h2 class="section-title">Ugovori i potraživanja</h2>
     <div class="stat-grid" id="contracts-stats"></div>
     <div id="contracts-list"></div>
 </div>

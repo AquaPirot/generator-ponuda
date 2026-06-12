@@ -92,7 +92,8 @@ async function loadDashboard() {
         <div class="stat-box"><div class="stat-num" style="color:#42a5f5;">${d.na_cekanju || 0}</div><div class="stat-label">Na čekanju</div></div>
         <div class="stat-box"><div class="stat-num" style="color:#4caf50;">${d.aktivni_ugovori || 0}</div><div class="stat-label">Aktivni ugovori</div></div>
         <div class="stat-box"><div class="stat-num">${fmt(d.ugovoreno)}</div><div class="stat-label">Ugovoreno (EUR)</div></div>
-        <div class="stat-box"><div class="stat-num" style="color:#4caf50;">${fmt(d.naplaceno)}</div><div class="stat-label">Naplaćeno (EUR)</div></div>`;
+        <div class="stat-box"><div class="stat-num" style="color:#4caf50;">${fmt(d.naplaceno)}</div><div class="stat-label">Naplaćeno (EUR)</div></div>
+        <div class="stat-box"><div class="stat-num" style="color:#ff9800;">${fmt(d.potrazivanje)}</div><div class="stat-label">Potraživanja (EUR)</div></div>`;
     const docs = await apiGet('docs_list');
     document.getElementById('dash-recent').innerHTML = docs.slice(0, 8).map(docCard).join('')
         || '<div class="empty-state"><div class="empty-icon">📄</div>Još nema dokumenata.<br>Kreni od <strong>+ Nova ponuda</strong>.</div>';
@@ -456,7 +457,9 @@ async function openDoc(id) {
     renderDocChildren(doc);
     renderDocActions(doc);
     document.getElementById('doc-payments').innerHTML = '';
-    if (doc.type === 'ponuda' && ['prihvaceno','zavrseno'].includes(doc.status)) renderDocPayments(doc.id);
+    const showPays = (doc.type === 'ponuda' && ['prihvaceno','zavrseno'].includes(doc.status))
+                  || (doc.type !== 'ponuda' && doc.status !== 'storniran');
+    if (showPays) renderDocPayments(doc.id);
     document.getElementById('doc-modal').classList.add('show');
 }
 function closeDocModal() { document.getElementById('doc-modal').classList.remove('show'); currentDoc = null; }
@@ -832,13 +835,18 @@ async function doConvert() {
 // ============================================
 async function loadContracts() {
     const rows = await apiGet('contracts_list');
-    let ugovoreno = 0, uplaceno = 0;
-    rows.forEach(r => { if (r.status === 'prihvaceno') { ugovoreno += parseFloat(r.total); uplaceno += parseFloat(r.uplaceno); } });
+    // Objedinjen presek u EUR (RSD racuni konvertovani po svom kursu)
+    let ugovoreno = 0, uplaceno = 0, aktivni = 0;
+    rows.forEach(r => {
+        ugovoreno += parseFloat(r.total_eur) || 0;
+        uplaceno  += parseFloat(r.uplaceno_eur) || 0;
+        if (['prihvaceno','izdat'].includes(r.status)) aktivni++;
+    });
     document.getElementById('contracts-stats').innerHTML = `
-        <div class="stat-box"><div class="stat-num">${rows.filter(r => r.status==='prihvaceno').length}</div><div class="stat-label">Aktivni ugovori</div></div>
+        <div class="stat-box"><div class="stat-num">${aktivni}</div><div class="stat-label">Aktivni ugovori</div></div>
         <div class="stat-box"><div class="stat-num">${fmt(ugovoreno)}</div><div class="stat-label">Ugovoreno (EUR)</div></div>
         <div class="stat-box"><div class="stat-num" style="color:#4caf50;">${fmt(uplaceno)}</div><div class="stat-label">Uplaćeno (EUR)</div></div>
-        <div class="stat-box"><div class="stat-num" style="color:#ff9800;">${fmt(ugovoreno - uplaceno)}</div><div class="stat-label">Preostalo (EUR)</div></div>`;
+        <div class="stat-box"><div class="stat-num" style="color:#ff9800;">${fmt(ugovoreno - uplaceno)}</div><div class="stat-label">Potraživanja (EUR)</div></div>`;
     document.getElementById('contracts-list').innerHTML = rows.map(r => {
         const pct = parseFloat(r.total) > 0 ? Math.min(100, parseFloat(r.uplaceno) / parseFloat(r.total) * 100) : 0;
         const preostalo = parseFloat(r.total) - parseFloat(r.uplaceno);
@@ -846,8 +854,8 @@ async function loadContracts() {
         <div class="list-card" onclick="openDoc(${r.id})">
             <div class="lc-head">
                 <div>
-                    <div class="lc-title">${esc(r.klijent || '—')}</div>
-                    <div class="lc-meta">${esc(r.oznaka)} · ${fmtDate(r.datum)}${r.rok ? ' · ⏱ ' + esc(r.rok) : ''}</div>
+                    <div class="lc-title">${esc(r.klijent || '—')}${r.klijent_tip === 'pravno' ? ' <span class="badge badge-blue">Pravno lice</span>' : ''}</div>
+                    <div class="lc-meta">${TYPE_LABEL[r.type]} <strong>${esc(r.oznaka)}</strong> · ${fmtDate(r.datum)}${r.rok ? ' · ⏱ ' + esc(r.rok) : ''}</div>
                 </div>
                 ${statusBadge(r.status)}
             </div>
@@ -855,19 +863,29 @@ async function loadContracts() {
             <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;"></div></div>
             <div class="lc-meta">Uplaćeno: <strong style="color:#4caf50;">${fmt(r.uplaceno)}</strong> · Preostalo: <strong style="color:${preostalo > 0.005 ? '#ff9800' : '#4caf50'};">${fmt(preostalo)}</strong> ${r.valuta}</div>
         </div>`;
-    }).join('') || '<div class="empty-state"><div class="empty-icon">🤝</div>Nema prihvaćenih ponuda.<br>Kad ponuda bude prihvaćena, označi je statusom <strong>Prihvaćeno</strong>.</div>';
+    }).join('') || '<div class="empty-state"><div class="empty-icon">🤝</div>Nema ugovora.<br>Označi ponudu statusom <strong>Prihvaćeno</strong> ili izdaj račun pravnom licu.</div>';
 }
 
 // ---------- Uplate ----------
+// Uplata u valutu dokumenta: uplata na RSD racunu koristi kurs tog racuna
+function payInValuta(p, valuta) {
+    const iznos = parseFloat(p.iznos) || 0;
+    const pv = p.valuta || p.doc_valuta || valuta;
+    if (pv === valuta) return iznos;
+    const kurs = (parseFloat(p.doc_kurs) > 1 ? parseFloat(p.doc_kurs) : parseFloat(SETTINGS.kurs_eur)) || 117.2;
+    return pv === 'RSD' ? iznos / kurs : iznos * kurs;
+}
+
 async function renderDocPayments(docId) {
-    const pays = await apiGet('payments_list', { doc_id: docId });
+    // family=1: i uplate na povezanim dokumentima (predracun/avansni/faktura iz ove ponude)
+    const pays = await apiGet('payments_list', { doc_id: docId, family: 1 });
     const total = parseFloat(currentDoc.total);
-    const sum = pays.reduce((s, p) => s + parseFloat(p.iznos), 0);
+    const sum = pays.reduce((s, p) => s + payInValuta(p, currentDoc.valuta), 0);
     const rows = pays.map(p => `
         <tr>
             <td>${fmtDate(p.datum)}</td>
-            <td>${esc(p.nacin)}${p.napomena ? ' — ' + esc(p.napomena) : ''}</td>
-            <td style="text-align:right;font-weight:700;">${fmt(p.iznos)}</td>
+            <td>${esc(p.nacin)}${p.napomena ? ' — ' + esc(p.napomena) : ''}${p.document_id != docId ? `<br><small style="color:var(--text-secondary);">preko ${esc(p.doc_oznaka)}</small>` : ''}</td>
+            <td style="text-align:right;font-weight:700;white-space:nowrap;">${fmt(p.iznos)} ${esc(p.valuta || currentDoc.valuta)}</td>
             <td><button class="del-x" onclick="deletePayment(${p.id})">🗑</button></td>
         </tr>`).join('');
     document.getElementById('doc-payments').innerHTML = `
