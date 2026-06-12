@@ -1,0 +1,12 @@
+# Zastita konfiguracije i biblioteka
+<FilesMatch "^(config\.php|config\.sample\.php|install\.sql)$">
+    Require all denied
+</FilesMatch>
+
+RewriteEngine On
+
+# Lep URL za javne ponude: /p/TOKEN -> p.php?t=TOKEN
+RewriteRule ^p/([a-f0-9]+)/?$ p.php?t=$1 [L,QSA]
+
+# UTF-8
+AddDefaultCharset UTF-8
