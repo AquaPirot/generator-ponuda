@@ -60,24 +60,19 @@ try {
             $n = (int)db()->query('SELECT COUNT(*) FROM users')->fetchColumn();
             if ($n > 0) json_out(['error' => 'Admin vec postoji'], 403);
             $d = json_in();
-            $u = trim($d['username'] ?? '');
             $p = $d['password'] ?? '';
-            if (strlen($u) < 3 || strlen($p) < 6) {
-                json_out(['error' => 'Korisnicko ime min 3, lozinka min 6 karaktera'], 400);
-            }
+            if (strlen($p) < 6) json_out(['error' => 'Lozinka mora imati min. 6 karaktera'], 400);
             $st = db()->prepare('INSERT INTO users (username, pass_hash, name) VALUES (?,?,?)');
-            $st->execute([$u, password_hash($p, PASSWORD_DEFAULT), trim($d['name'] ?? '')]);
+            $st->execute(['admin', password_hash($p, PASSWORD_DEFAULT), trim($d['name'] ?? '')]);
             $_SESSION['user_id'] = (int)db()->lastInsertId();
             json_out(['ok' => true]);
         }
 
         case 'login': {
             $d = json_in();
-            $st = db()->prepare('SELECT * FROM users WHERE username = ?');
-            $st->execute([trim($d['username'] ?? '')]);
-            $user = $st->fetch();
+            $user = db()->query('SELECT * FROM users LIMIT 1')->fetch();
             if (!$user || !password_verify($d['password'] ?? '', $user['pass_hash'])) {
-                json_out(['error' => 'Pogresno korisnicko ime ili lozinka'], 401);
+                json_out(['error' => 'Pogrešna lozinka'], 401);
             }
             session_regenerate_id(true);
             $_SESSION['user_id'] = (int)$user['id'];

@@ -31,12 +31,10 @@ $setupNeeded = ((int)db()->query('SELECT COUNT(*) FROM users')->fetchColumn()) =
 <div class="box">
     <h1>PROHORECA AG GROUP</h1>
     <?php if ($setupNeeded): ?>
-    <p class="sub">Prvo pokretanje — napravi admin nalog</p>
+    <p class="sub">Prvo pokretanje — postavi lozinku</p>
     <form id="f">
         <label>Ime i prezime</label>
         <input type="text" id="name" autocomplete="name">
-        <label>Korisničko ime</label>
-        <input type="text" id="username" required autocomplete="username">
         <label>Lozinka (min 6 karaktera)</label>
         <input type="password" id="password" required autocomplete="new-password">
         <button type="submit">Napravi nalog i uđi</button>
@@ -47,7 +45,6 @@ $setupNeeded = ((int)db()->query('SELECT COUNT(*) FROM users')->fetchColumn()) =
             e.preventDefault();
             const r = await fetch('api.php?action=setup', { method:'POST', body: JSON.stringify({
                 name: document.getElementById('name').value,
-                username: document.getElementById('username').value,
                 password: document.getElementById('password').value
             })});
             const d = await r.json();
@@ -58,10 +55,8 @@ $setupNeeded = ((int)db()->query('SELECT COUNT(*) FROM users')->fetchColumn()) =
     <?php else: ?>
     <p class="sub">Generator ponuda — prijava</p>
     <form id="f">
-        <label>Korisničko ime</label>
-        <input type="text" id="username" required autocomplete="username">
         <label>Lozinka</label>
-        <input type="password" id="password" required autocomplete="current-password">
+        <input type="password" id="password" required autocomplete="current-password" autofocus>
         <button type="submit">Prijavi se</button>
         <div class="err" id="err"></div>
     </form>
@@ -69,7 +64,6 @@ $setupNeeded = ((int)db()->query('SELECT COUNT(*) FROM users')->fetchColumn()) =
         document.getElementById('f').addEventListener('submit', async e => {
             e.preventDefault();
             const r = await fetch('api.php?action=login', { method:'POST', body: JSON.stringify({
-                username: document.getElementById('username').value,
                 password: document.getElementById('password').value
             })});
             const d = await r.json();
