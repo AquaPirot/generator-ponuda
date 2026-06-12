@@ -182,6 +182,16 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
         <div class="form-group"><label>Ponuda važi (dana)</label><input type="number" id="s-ponuda_vazi_dana"></div>
     </div>
     <button class="btn btn-success" onclick="saveSettings()">💾 Sačuvaj podešavanja</button>
+
+    <div class="card" style="margin-top:16px;">
+        <div class="card-title" style="margin-bottom:12px;">Promena lozinke</div>
+        <div class="form-group"><label>Trenutna lozinka</label><input type="password" id="s-pass-current" autocomplete="current-password"></div>
+        <div class="form-row">
+            <div class="form-group"><label>Nova lozinka</label><input type="password" id="s-pass-new" autocomplete="new-password"></div>
+            <div class="form-group"><label>Ponovi novu</label><input type="password" id="s-pass-new2" autocomplete="new-password"></div>
+        </div>
+        <button class="btn btn-outline" onclick="changePassword()">🔑 Promeni lozinku</button>
+    </div>
 </div>
 
 <!-- ===== DOC MODAL ===== -->

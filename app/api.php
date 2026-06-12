@@ -95,6 +95,22 @@ try {
             json_out(get_all_settings());
         }
 
+        case 'password_change': {
+            require_login();
+            $d = json_in();
+            $new = $d['new_pass'] ?? '';
+            if (strlen($new) < 6) json_out(['error' => 'Nova lozinka mora imati min. 6 karaktera'], 400);
+            $st = db()->prepare('SELECT pass_hash FROM users WHERE id = ?');
+            $st->execute([$_SESSION['user_id']]);
+            $hash = $st->fetchColumn();
+            if (!password_verify($d['current_pass'] ?? '', $hash)) {
+                json_out(['error' => 'Trenutna lozinka nije ispravna'], 401);
+            }
+            db()->prepare('UPDATE users SET pass_hash = ? WHERE id = ?')
+               ->execute([password_hash($new, PASSWORD_DEFAULT), (int)$_SESSION['user_id']]);
+            json_out(['ok' => true]);
+        }
+
         case 'settings_save': {
             require_login();
             $d = json_in();

@@ -1021,6 +1021,21 @@ function fillSettingsForm() {
     });
     document.getElementById(SETTINGS.pdv_enabled === '1' ? 's-pdv-da' : 's-pdv-ne').checked = true;
 }
+async function changePassword() {
+    const cur  = document.getElementById('s-pass-current').value;
+    const np   = document.getElementById('s-pass-new').value;
+    const np2  = document.getElementById('s-pass-new2').value;
+    if (!cur)  { showToast('Unesi trenutnu lozinku', true); return; }
+    if (!np)   { showToast('Unesi novu lozinku', true); return; }
+    if (np !== np2) { showToast('Nove lozinke se ne poklapaju', true); return; }
+    const r = await api('password_change', { current_pass: cur, new_pass: np });
+    if (r.error) { showToast(r.error, true); return; }
+    document.getElementById('s-pass-current').value = '';
+    document.getElementById('s-pass-new').value = '';
+    document.getElementById('s-pass-new2').value = '';
+    showToast('✓ Lozinka promenjena');
+}
+
 async function saveSettings() {
     const payload = {};
     SETTING_KEYS.forEach(k => {
