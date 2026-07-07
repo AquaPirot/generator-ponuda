@@ -224,3 +224,90 @@ body {
     border-bottom: 1px solid rgba(212,165,116,0.2); }
 .payments-table td { padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .del-x { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 15px; }
+
+/* ============ v2: poslovi ============ */
+
+body { padding-bottom: 96px; }
+
+/* donja navigacija + FAB */
+.bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
+    display: flex; background: var(--bg-card); border-top: 1px solid rgba(212,165,116,0.25);
+    padding: 6px 4px calc(8px + env(safe-area-inset-bottom)); }
+.bnav-btn { flex: 1; background: none; border: none; color: var(--text-secondary);
+    font-size: 10.5px; font-weight: 600; cursor: pointer; padding: 6px 0 3px; letter-spacing: 0.3px; }
+.bnav-btn .ic { display: block; font-size: 20px; margin-bottom: 2px; filter: grayscale(1) opacity(0.55); }
+.bnav-btn.active { color: var(--accent); }
+.bnav-btn.active .ic { filter: none; }
+.fab { position: fixed; right: 14px; bottom: calc(64px + env(safe-area-inset-bottom)); z-index: 210;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark)); color: var(--bg-dark);
+    border: none; border-radius: 16px; padding: 14px 18px; font-size: 15px; font-weight: 800;
+    cursor: pointer; box-shadow: 0 8px 22px rgba(212,165,116,0.4); letter-spacing: 0.2px; }
+.fab:active { transform: scale(0.96); }
+
+/* statistika na vrhu liste poslova */
+.stat-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.stat-grid-3 .stat-box { padding: 11px 8px; }
+.stat-grid-3 .stat-num { font-size: 16px; }
+.stat-hot { border-color: rgba(255,152,0,0.45) !important; }
+.stat-hot .stat-num { color: var(--warning) !important; }
+.stat-ok .stat-num { color: var(--success) !important; }
+
+/* status pilule poslova */
+.pill { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.3px;
+    padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+.pl-ponuda      { background: rgba(66,165,245,0.16); color: #42a5f5; }
+.pl-ugovoreno   { background: rgba(212,165,116,0.18); color: var(--accent); }
+.pl-realizacija { background: rgba(255,152,0,0.16); color: var(--warning); }
+.pl-zavrseno    { background: rgba(76,175,80,0.16); color: var(--success); }
+.pl-odbijeno    { background: rgba(231,76,60,0.16); color: var(--danger); }
+
+/* mini oznaka PDV tretmana */
+.tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2.5px 7px;
+    border-radius: 6px; letter-spacing: 0.3px; background: rgba(255,255,255,0.07);
+    color: var(--text-secondary); vertical-align: middle; }
+.tag-pdv  { color: #42a5f5; }
+.tag-cl10 { color: var(--warning); }
+
+/* koraci statusa posla */
+.steps { display: flex; align-items: flex-start; padding: 6px 2px 2px; margin-bottom: 12px; }
+.step { flex: 1; text-align: center; position: relative; cursor: pointer; }
+.step .dot { width: 24px; height: 24px; border-radius: 50%; margin: 0 auto;
+    background: var(--bg-input); border: 2px solid var(--bg-input);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--text-secondary); position: relative; z-index: 1; }
+.step.done .dot { background: var(--accent); border-color: var(--accent); color: var(--bg-dark); font-weight: 800; }
+.step.now .dot { border-color: var(--accent); color: var(--accent); background: var(--bg-dark); font-weight: 800; }
+.step .sl { font-size: 9.5px; margin-top: 5px; color: var(--text-secondary); letter-spacing: 0.2px; }
+.step.done .sl, .step.now .sl { color: var(--accent); font-weight: 700; }
+.step::before { content: ""; position: absolute; top: 12px; left: -50%; width: 100%; height: 2px; background: var(--bg-input); }
+.step:first-child::before { display: none; }
+.step.done::before, .step.now::before { background: var(--accent-dark); }
+
+/* dokument cipovi na poslu */
+.docchips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 11px; }
+.docchip { font-size: 11.5px; font-weight: 700; padding: 7px 10px; border-radius: 9px; cursor: pointer;
+    background: var(--bg-input); border: 1px solid rgba(212,165,116,0.2); color: var(--text-primary); }
+.docchip span { color: var(--text-secondary); font-weight: 600; }
+.docchip.storno { opacity: 0.5; text-decoration: line-through; }
+
+/* red akcionih dugmica */
+.actrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.actrow .btn { flex: 1; min-width: 110px; margin: 0; padding: 12px 8px; font-size: 13px; }
+
+/* predlog (izdaj avansni) */
+.suggest { margin-top: 10px; background: rgba(212,165,116,0.08); border: 1px dashed rgba(212,165,116,0.45);
+    border-radius: 12px; padding: 11px 12px; font-size: 12.5px; line-height: 1.5; }
+.suggest button { margin-top: 8px; background: var(--accent); color: var(--bg-dark); border: none;
+    border-radius: 9px; padding: 8px 13px; font-size: 12px; font-weight: 800; cursor: pointer; }
+
+/* zakonska napomena (cl.10 / cl.33) */
+.lawnote { margin-top: 10px; font-size: 12px; line-height: 1.55; color: var(--warning);
+    background: rgba(255,152,0,0.09); border: 1px solid rgba(255,152,0,0.3); border-radius: 10px; padding: 9px 11px; }
+.subnote { margin-top: 10px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+/* back dugme u detalju */
+.dethead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.dethead .back { background: var(--bg-card); border: 1px solid rgba(212,165,116,0.3); color: var(--text-primary);
+    border-radius: 10px; width: 38px; height: 38px; font-size: 18px; cursor: pointer; flex-shrink: 0; }
+.dethead .t { font-size: 17px; font-weight: 700; }
+.dethead .s { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }

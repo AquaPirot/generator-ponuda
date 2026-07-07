@@ -62,3 +62,26 @@ function next_doc_number(string $type, int $godina): array {
     $oznaka = doc_prefix($type) . '-' . $godina . '-' . str_pad($broj, 3, '0', STR_PAD_LEFT);
     return [$broj, $oznaka];
 }
+
+// PDV tretman se odredjuje iz klijenta, nikad rucno po dokumentu:
+//   none     - firma nije u PDV sistemu, ili fizicko lice
+//   standard - pravno lice, PDV se iskazuje (uracunat u cenu)
+//   cl10     - pravno lice, obrnuti obracun po cl. 10 st. 2 t. 3
+function pdv_treatment(?array $client, array $S): array {
+    if (($S['pdv_enabled'] ?? '0') !== '1') return ['none', 0.0];
+    if (!$client || ($client['tip'] ?? 'fizicko') !== 'pravno') return ['none', 0.0];
+    if (($client['pdv_mode'] ?? 'standard') === 'cl10') return ['cl10', 0.0];
+    return ['standard', (float)(($S['pdv_rate'] ?? '') ?: 20)];
+}
+
+// PDV uracunat u cenu: iz ukupnog iznosa izvlaci iznos PDV-a
+function pdv_included(float $total, float $rate): float {
+    return $rate > 0 ? round($total - $total / (1 + $rate / 100), 2) : 0.0;
+}
+
+// Iznos u EUR (RSD se deli kursom; kurs <= 1 znaci nepoznat -> fallback iz podesavanja)
+function to_eur(float $iznos, string $valuta, float $kurs, float $fallbackKurs): float {
+    if ($valuta === 'EUR') return $iznos;
+    $k = $kurs > 1 ? $kurs : $fallbackKurs;
+    return $k > 0 ? $iznos / $k : $iznos;
+}

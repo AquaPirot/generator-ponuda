@@ -1,19 +1,22 @@
 // ============================================
-// PROHORECA AG GROUP - Generator ponuda (server verzija)
+// PROHORECA AG GROUP - Poslovi (v2)
+// Posao je centralna stvar; dokumenti i uplate
+// izlaze iz posla. PDV tretman odredjuje klijent.
 // ============================================
 
 let SETTINGS = {};
 let CLIENTS = [];
+let JOBS = [];
 let pergolas = [], glasses = [];
 let pergolaIdC = 0, glassIdC = 0;
-let editingDocId = null;          // ako editujemo postojecu ponudu
-let docsFilter = { type: '', status: '' };
-let currentDoc = null;            // dokument otvoren u modalu
+let editingJobId = null;         // posao koji se menja u kalkulatoru
+let jobsFilter = 'svi';
+let currentJob = null;           // posao otvoren u detalju
+let currentDoc = null;           // dokument otvoren u modalu
 
 // ---------- HELPERS ----------
 async function api(action, data) {
-    const opts = { method: 'POST', body: JSON.stringify(data || {}) };
-    const r = await fetch('api.php?action=' + action, opts);
+    const r = await fetch('api.php?action=' + action, { method: 'POST', body: JSON.stringify(data || {}) });
     if (r.status === 401) { location.href = 'login.php'; return {}; }
     return r.json();
 }
@@ -43,23 +46,24 @@ function showToast(msg, isErr) {
 }
 function closeOverlay(id) { document.getElementById(id).classList.remove('show'); }
 function openOverlay(id)  { document.getElementById(id).classList.add('show'); }
-
 async function logout() { await api('logout', {}); location.href = 'login.php'; }
 
-const TYPE_LABEL = { ponuda:'Ponuda', predracun:'Predračun', avansni:'Avansni račun', faktura:'Faktura' };
-const STATUS_INFO = {
-    nacrt:      { label:'Nacrt',       cls:'badge-gray'   },
-    poslato:    { label:'Poslato',     cls:'badge-blue'   },
-    prihvaceno: { label:'Prihvaćeno',  cls:'badge-green'  },
-    odbijeno:   { label:'Odbijeno',    cls:'badge-red'    },
-    zavrseno:   { label:'Završeno',    cls:'badge-gold'   },
-    izdat:      { label:'Izdat',       cls:'badge-blue'   },
-    placen:     { label:'Plaćen',      cls:'badge-green'  },
-    storniran:  { label:'Storniran',   cls:'badge-red'    },
+const TYPE_LABEL = { ponuda:'Ponuda', predracun:'Predračun', avansni:'Avansni račun', faktura:'Konačni račun' };
+const JOB_ST = {
+    ponuda:      { l:'PONUDA',        cls:'pl-ponuda',      step:0 },
+    ugovoreno:   { l:'UGOVORENO',     cls:'pl-ugovoreno',   step:1 },
+    realizacija: { l:'U REALIZACIJI', cls:'pl-realizacija', step:2 },
+    zavrseno:    { l:'ZAVRŠENO',      cls:'pl-zavrseno',    step:3 },
+    odbijeno:    { l:'ODBIJENO',      cls:'pl-odbijeno',    step:-1 },
 };
-function statusBadge(s) {
-    const i = STATUS_INFO[s] || { label:s, cls:'badge-gray' };
-    return `<span class="badge ${i.cls}">${i.label}</span>`;
+function jobPill(s) {
+    const i = JOB_ST[s] || { l:s, cls:'pl-ponuda' };
+    return `<span class="pill ${i.cls}">${i.l}</span>`;
+}
+function pdvTag(tip, mode) {
+    if (tip !== 'pravno') return '';
+    return mode === 'cl10' ? '<span class="tag tag-cl10">ČL. 10</span>'
+                           : '<span class="tag tag-pdv">PDV 20%</span>';
 }
 
 // ---------- INIT ----------
@@ -68,60 +72,245 @@ document.addEventListener('DOMContentLoaded', async () => {
     fillSettingsForm();
     await loadClients();
     resetCalculator(false);
-    loadDashboard();
+    loadJobs();
 });
 
 // ---------- TABS ----------
 function switchTab(name) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
-    document.querySelector(`.tab-btn[data-tab="${name}"]`).classList.add('active');
-    if (name === 'pocetna')    loadDashboard();
-    if (name === 'dokumenti')  loadDocs();
-    if (name === 'ugovori')    loadContracts();
-    if (name === 'klijenti')   renderClients();
+    document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
+    const nav = document.getElementById('bnav-' + name);
+    if (nav) nav.classList.add('active');
+    document.querySelector('.fab').style.display = ['poslovi','klijenti'].includes(name) ? 'block' : 'none';
+    if (name === 'poslovi')  loadJobs();
+    if (name === 'klijenti') renderClients();
     window.scrollTo(0, 0);
 }
 
-// ---------- DASHBOARD ----------
-async function loadDashboard() {
-    const d = await apiGet('dashboard');
-    document.getElementById('dash-stats').innerHTML = `
-        <div class="stat-box"><div class="stat-num">${d.ponuda_br || 0}</div><div class="stat-label">Ponuda ove godine</div></div>
-        <div class="stat-box"><div class="stat-num" style="color:#42a5f5;">${d.na_cekanju || 0}</div><div class="stat-label">Na čekanju</div></div>
-        <div class="stat-box"><div class="stat-num" style="color:#4caf50;">${d.aktivni_ugovori || 0}</div><div class="stat-label">Aktivni ugovori</div></div>
-        <div class="stat-box"><div class="stat-num">${fmt(d.ugovoreno)}</div><div class="stat-label">Ugovoreno (EUR)</div></div>
-        <div class="stat-box"><div class="stat-num" style="color:#4caf50;">${fmt(d.naplaceno)}</div><div class="stat-label">Naplaćeno (EUR)</div></div>
-        <div class="stat-box"><div class="stat-num" style="color:#ff9800;">${fmt(d.potrazivanje)}</div><div class="stat-label">Potraživanja (EUR)</div></div>`;
-    const docs = await apiGet('docs_list');
-    document.getElementById('dash-recent').innerHTML = docs.slice(0, 8).map(docCard).join('')
-        || '<div class="empty-state"><div class="empty-icon">📄</div>Još nema dokumenata.<br>Kreni od <strong>+ Nova ponuda</strong>.</div>';
+// ============================================
+// POSLOVI - lista
+// ============================================
+async function loadJobs() {
+    JOBS = await apiGet('jobs_list');
+    renderJobs();
 }
+function setJobsFilter(btn) {
+    jobsFilter = btn.dataset.f;
+    btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderJobs();
+}
+function jobMatch(j) {
+    const q = document.getElementById('jobs-search').value.trim().toLowerCase();
+    if (q && !((j.klijent || '') + ' ' + (j.klijent_mesto || '') + ' ' + (j.naziv || '') + ' ' + (j.oznake || '')).toLowerCase().includes(q)) return false;
+    const rest = parseFloat(j.total) - parseFloat(j.uplaceno);
+    if (jobsFilter === 'ponude')   return j.status === 'ponuda';
+    if (jobsFilter === 'utoku')    return ['ugovoreno','realizacija'].includes(j.status);
+    if (jobsFilter === 'duguju')   return ['ugovoreno','realizacija','zavrseno'].includes(j.status) && rest > 0.005;
+    if (jobsFilter === 'zavrseni') return j.status === 'zavrseno';
+    return true;
+}
+function renderJobs() {
+    // objedinjen presek: ugovoreno / naplaceno / potrazivanja (EUR)
+    let ugovoreno = 0, uplaceno = 0;
+    JOBS.forEach(j => {
+        if (!['ugovoreno','realizacija','zavrseno'].includes(j.status)) return;
+        ugovoreno += parseFloat(j.total) || 0;
+        uplaceno  += parseFloat(j.uplaceno) || 0;
+    });
+    document.getElementById('jobs-stats').innerHTML = `
+        <div class="stat-box"><div class="stat-num">${fmt(ugovoreno)} €</div><div class="stat-label">Ugovoreno</div></div>
+        <div class="stat-box stat-ok"><div class="stat-num">${fmt(uplaceno)} €</div><div class="stat-label">Naplaćeno</div></div>
+        <div class="stat-box stat-hot"><div class="stat-num">${fmt(Math.max(0, ugovoreno - uplaceno))} €</div><div class="stat-label">Potraživanja</div></div>`;
 
-function docCard(o) {
-    return `
-    <div class="list-card" onclick="openDoc(${o.id})">
-        <div class="lc-head">
-            <div>
-                <div class="lc-title">${esc(o.klijent || 'Bez klijenta')}</div>
-                <div class="lc-meta">${TYPE_LABEL[o.type]} <strong>${esc(o.oznaka)}</strong> · ${fmtDate(o.datum)}${o.klijent_mesto ? ' · 📍 ' + esc(o.klijent_mesto) : ''}</div>
+    const rows = JOBS.filter(jobMatch);
+    document.getElementById('jobs-list').innerHTML = rows.map(j => {
+        const total = parseFloat(j.total) || 0, upl = parseFloat(j.uplaceno) || 0;
+        const rest = total - upl;
+        const pct = total > 0 ? Math.min(100, upl / total * 100) : 0;
+        const prog = ['ugovoreno','realizacija','zavrseno'].includes(j.status) ? `
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;"></div></div>
+            <div class="lc-meta">Uplaćeno <strong style="color:var(--success);">${fmt(upl)} €</strong> · ${rest > 0.005 ? 'duguje <strong style="color:var(--warning);">' + fmt(rest) + ' €</strong>' : '<strong style="color:var(--success);">izmireno ✓</strong>'}</div>` : '';
+        return `
+        <div class="list-card" onclick="openJob(${j.id})">
+            <div class="lc-head">
+                <div>
+                    <div class="lc-title">${esc(j.klijent || 'Bez klijenta')} ${pdvTag(j.klijent_tip, j.klijent_pdv_mode)}</div>
+                    <div class="lc-meta">${esc(j.naziv || '')}${j.klijent_mesto ? ' · 📍 ' + esc(j.klijent_mesto) : ''}</div>
+                </div>
+                ${jobPill(j.status)}
             </div>
-            ${statusBadge(o.status)}
-        </div>
-        <div class="lc-amount">${fmt(o.total)} ${o.valuta}</div>
-    </div>`;
+            <div class="lc-amount">${fmt(total)} € <span style="font-size:11px;color:var(--text-secondary);font-weight:600;">· ${fmtDate(j.datum)}</span></div>
+            ${prog}
+        </div>`;
+    }).join('') || '<div class="empty-state"><div class="empty-icon">📋</div>Nema poslova za ovaj filter.<br>Kreni od <strong>+ Novi posao</strong>.</div>';
 }
 
 // ============================================
-// KALKULATOR (Nova ponuda)
+// DETALJ POSLA
 // ============================================
+async function openJob(id) {
+    const job = await apiGet('job_get', { id });
+    if (job.error) { showToast(job.error, true); return; }
+    currentJob = job;
+    document.getElementById('jd-title').textContent = job.klijent_naziv || 'Bez klijenta';
+    document.getElementById('jd-sub').textContent = job.naziv || '';
+    renderJobDetail();
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById('tab-posao').classList.add('active');
+    document.querySelector('.fab').style.display = 'none';
+    window.scrollTo(0, 0);
+}
+
+function renderJobDetail() {
+    const j = currentJob;
+    const st = JOB_ST[j.status];
+    const total = parseFloat(j.total) || 0;
+    const upl = parseFloat(j.uplaceno_eur) || 0;
+    const rest = total - upl;
+
+    // koraci statusa (klik menja status)
+    const stepNames = [['ponuda','Ponuda'],['ugovoreno','Ugovoreno'],['realizacija','Realizacija'],['zavrseno','Završeno']];
+    const steps = j.status === 'odbijeno'
+        ? `<div class="lawnote" style="margin:0 0 12px;">Posao označen kao ODBIJEN. <button class="btn btn-sm btn-outline" style="margin-left:8px;" onclick="setJobStatus('ponuda')">Vrati u ponude</button></div>`
+        : `<div class="steps">` + stepNames.map(([key, label], i) => `
+            <div class="step ${i < st.step ? 'done' : i === st.step ? 'now' : ''}" onclick="setJobStatus('${key}')">
+                <div class="dot">${i < st.step ? '✓' : i + 1}</div><div class="sl">${label}</div>
+            </div>`).join('') + `</div>`;
+
+    // klijent
+    const kMeta = [j.klijent_tel ? '📞 ' + esc(j.klijent_tel) : '', j.klijent_mesto ? '📍 ' + esc(j.klijent_mesto) : '',
+                   j.klijent_pib ? 'PIB ' + esc(j.klijent_pib) : ''].filter(Boolean).join(' · ');
+
+    // stavke + obracun po PDV tretmanu
+    const items = (j.items || []).map(it => `
+        <div class="summary-row">
+            <span class="sum-label">${esc(it.naziv)}${it.opis ? '<br><small>' + esc(it.opis) + '</small>' : ''}</span>
+            <span class="sum-value" style="white-space:nowrap;">${fmt(it.iznos)} €</span>
+        </div>`).join('');
+    let obracun;
+    if (j.pdv_mode === 'standard') {
+        const rate = parseFloat(j.pdv_rate) || 20;
+        const pdv = total - total / (1 + rate / 100);
+        obracun = `
+            <div class="summary-row"><span class="sum-label">Osnovica</span><span class="sum-value">${fmt(total - pdv)} €</span></div>
+            <div class="summary-row"><span class="sum-label">PDV ${rate}%</span><span class="sum-value">${fmt(pdv)} €</span></div>
+            <div class="summary-row total"><span class="sum-label">UKUPNO</span><span class="sum-value">${fmt(total)} €</span></div>
+            <div class="subnote">Pravno lice — osnovica i PDV se iskazuju automatski na svakom dokumentu.</div>`;
+    } else if (j.pdv_mode === 'cl10') {
+        obracun = `
+            <div class="summary-row total"><span class="sum-label">UKUPNO (bez PDV)</span><span class="sum-value">${fmt(total)} €</span></div>
+            <div class="lawnote">⚖ ${esc(SETTINGS.pdv_cl10_napomena || 'Obrnuti obračun — PDV obračunava primalac (čl. 10 st. 2 t. 3 Zakona o PDV).')}</div>`;
+    } else {
+        obracun = `
+            <div class="summary-row total"><span class="sum-label">UKUPNO</span><span class="sum-value">${fmt(total)} €</span></div>
+            <div class="subnote">${j.klijent_tip === 'pravno' ? 'Firma nije u sistemu PDV-a — PDV se ne iskazuje.' : 'Fizičko lice — PDV se ne iskazuje na dokumentima.'}</div>`;
+    }
+    const discRow = parseFloat(j.disc_amount) > 0
+        ? `<div class="summary-row"><span class="sum-label">Popust</span><span class="sum-value" style="color:var(--danger);">-${fmt(j.disc_amount)} €</span></div>` : '';
+
+    // dokumenti
+    const chips = (j.documents || []).map(d => `
+        <span class="docchip ${d.status === 'storniran' ? 'storno' : ''}" onclick="openDoc(${d.id})">
+            ${TYPE_LABEL[d.type]} <span>${esc(d.oznaka)}</span>
+        </span>`).join('') || '<div class="subnote" style="margin:0 0 10px;">Još nema dokumenata.</div>';
+
+    // uplate
+    const pays = (j.payments || []).map(p => `
+        <div class="summary-row">
+            <span class="sum-label">${fmtDate(p.datum)} · ${esc(p.nacin)}${p.napomena ? ' — ' + esc(p.napomena) : ''}
+                ${p.avansni_oznaka ? `<br><small style="color:var(--success);font-weight:700;">✓ izdat avansni ${esc(p.avansni_oznaka)}</small>` : ''}
+            </span>
+            <span class="sum-value" style="white-space:nowrap;">${fmt(p.iznos)} ${esc(p.valuta)}
+                <button class="del-x" onclick="deletePayment(${p.id})">🗑</button>
+            </span>
+        </div>`).join('') || '<div class="subnote" style="margin:0;">Još nema uplata.</div>';
+
+    // predlog: izdaj avansni na uplatu bez avansnog
+    const noAvr = (j.payments || []).find(p => !p.avansni_doc_id);
+    const suggest = noAvr && j.status !== 'zavrseno' && j.status !== 'odbijeno' ? `
+        <div class="suggest">💡 Za uplatu od <strong>${fmt(noAvr.iznos)} ${esc(noAvr.valuta)}</strong> (${fmtDate(noAvr.datum)}) nije izdat avansni račun.
+            <br><button onclick="issueAvansni(${noAvr.id})">Izdaj avansni račun</button>
+        </div>` : '';
+
+    document.getElementById('jd-body').innerHTML = `
+        ${steps}
+        <div class="card">
+            <div class="lc-head">
+                <div>
+                    <div class="lc-title">${esc(j.klijent_naziv || 'Bez klijenta')} ${pdvTag(j.klijent_tip, j.klijent_pdv_mode)}</div>
+                    <div class="lc-meta">${kMeta}</div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title" style="margin-bottom:8px;">Stavke</div>
+            ${items}
+            ${discRow}
+            ${obracun}
+            ${j.rok ? `<div class="subnote">⏱ Rok: ${esc(j.rok)}</div>` : ''}
+        </div>
+        <div class="card">
+            <div class="card-title" style="margin-bottom:10px;">Dokumenti</div>
+            <div class="docchips">${chips}</div>
+            <div class="actrow">
+                <button class="btn btn-outline" onclick="openIssue('predracun')">+ Predračun</button>
+                <button class="btn btn-accent" onclick="openIssue('faktura')">+ Konačni račun</button>
+            </div>
+            <div class="subnote">Avansni račun se izdaje na uplatu (dole). Konačni račun automatski odbija sve izdate avansne račune.</div>
+        </div>
+        <div class="card">
+            <div class="card-header" style="margin-bottom:6px;">
+                <span class="card-title">💰 Uplate</span>
+                <button class="btn btn-success btn-sm" onclick="openPaymentForm()">+ Uplata</button>
+            </div>
+            ${pays}
+            ${suggest}
+            <div class="separator"></div>
+            <div class="summary-row"><span class="sum-label">Uplaćeno</span><span class="sum-value" style="color:var(--success);">${fmt(upl)} €</span></div>
+            <div class="summary-row"><span class="sum-label">Preostalo</span><span class="sum-value" style="color:${rest > 0.005 ? 'var(--warning)' : 'var(--success)'};">${fmt(Math.max(0, rest))} €</span></div>
+        </div>
+        <div class="actrow" style="margin-bottom:10px;">
+            <button class="btn btn-outline" onclick="editJob()">✎ Izmeni posao</button>
+            ${j.status === 'ponuda' ? `<button class="btn btn-danger" onclick="setJobStatus('odbijeno')">✕ Odbijena</button>` : ''}
+        </div>
+        <button class="btn btn-danger" onclick="deleteJob()">🗑 Obriši posao (sa dokumentima i uplatama)</button>`;
+}
+
+async function setJobStatus(status) {
+    if (!currentJob || currentJob.status === status) return;
+    const r = await api('job_status', { id: currentJob.id, status });
+    if (r.error) { showToast(r.error, true); return; }
+    showToast('Status: ' + JOB_ST[status].l);
+    openJob(currentJob.id);
+}
+
+async function deleteJob() {
+    if (!confirm('Obrisati ceo posao, sve njegove dokumente i uplate?')) return;
+    const r = await api('job_delete', { id: currentJob.id });
+    if (r.error) { showToast(r.error, true); return; }
+    showToast('Posao obrisan');
+    switchTab('poslovi');
+}
+
+// ============================================
+// KALKULATOR (novi posao / izmena)
+// ============================================
+function startNewJob() {
+    resetCalculator(false);
+    switchTab('novi');
+}
+function cancelCalculator() {
+    if (editingJobId) { const id = editingJobId; editingJobId = null; openJob(id); }
+    else switchTab('poslovi');
+}
 function resetCalculator(confirmFirst) {
     if (confirmFirst && (pergolas.length || glasses.length) && !confirm('Odbaciti trenutni unos?')) return;
-    editingDocId = null;
+    editingJobId = null;
     pergolas = []; glasses = [];
     pergolaIdC = 0; glassIdC = 0;
-    document.getElementById('nova-title').textContent = 'Nova ponuda';
+    document.getElementById('nova-title').textContent = 'Novi posao';
     document.getElementById('np-datum').value = new Date().toISOString().split('T')[0];
     document.getElementById('np-disc-type').value = 'percent';
     document.getElementById('np-disc-val').value = '';
@@ -343,7 +532,7 @@ function calcSummary() {
     document.getElementById('np-sum-total').textContent = fmt(Math.max(0, sub - disc));
 }
 
-// --- Cuvanje ponude ---
+// --- Cuvanje posla ---
 function buildItems() {
     const items = [];
     pergolas.forEach(p => {
@@ -371,7 +560,16 @@ function buildItems() {
     return items;
 }
 
-async function saveOffer() {
+function jobNaziv(items) {
+    const p = items.filter(i => i.kind === 'pergola').length;
+    const g = items.filter(i => i.kind === 'staklo').length;
+    const parts = [];
+    if (p) parts.push(srPergola(p));
+    if (g) parts.push(srSistem(g) + ' stakla');
+    return parts.join(' + ') || 'Posao';
+}
+
+async function saveJob() {
     const clientId = document.getElementById('np-client').value;
     if (!clientId) { showToast('⚠ Izaberi klijenta', true); return; }
     if (!pergolas.length && !glasses.length) { showToast('⚠ Dodaj pergolu ili stakleni sistem', true); return; }
@@ -381,31 +579,30 @@ async function saveOffer() {
     const dt = document.getElementById('np-disc-type').value;
     const dv = parseFloat(document.getElementById('np-disc-val').value) || 0;
     const disc = dv > 0 ? (dt === 'percent' ? sub * dv / 100 : dv) : 0;
-    const payload = {
-        id: editingDocId,
-        type: 'ponuda',
+    const items = buildItems();
+    const r = await api('job_save', {
+        id: editingJobId,
         client_id: parseInt(clientId),
+        naziv: jobNaziv(items),
         datum: document.getElementById('np-datum').value,
-        valuta: 'EUR', kurs: 1,
-        items: buildItems(),
+        items,
         calc_state: { pergolas, glasses, pergolaIdC, glassIdC },
         subtotal: sub, disc_type: dt, disc_val: dv, disc_amount: disc,
-        pdv_rate: 0, pdv_amount: 0,
         total: Math.max(0, sub - disc),
         rok: document.getElementById('np-rok').value,
         napomena: document.getElementById('np-napomena').value,
-    };
-    const r = await api('doc_save', payload);
+    });
     if (r.error) { showToast(r.error, true); return; }
-    showToast(`✓ Sačuvano: ${r.oznaka}`);
+    showToast(`✓ Sačuvano${r.oznaka ? ': ' + r.oznaka : ''}`);
+    const jobId = r.id;
+    editingJobId = null;
     resetCalculator(false);
-    switchTab('dokumenti');
-    openDoc(r.id);
+    openJob(jobId);
 }
 
-async function editOffer(doc) {
-    closeDocModal();
-    const cs = doc.calc_state;
+function editJob() {
+    const j = currentJob;
+    const cs = j.calc_state;
     if (cs && cs.pergolas) {
         pergolas = cs.pergolas; glasses = cs.glasses || [];
         pergolaIdC = cs.pergolaIdC || pergolas.length;
@@ -413,96 +610,109 @@ async function editOffer(doc) {
     } else {
         pergolas = []; glasses = []; pergolaIdC = 0; glassIdC = 0;
     }
-    editingDocId = doc.id;
-    document.getElementById('nova-title').textContent = 'Izmena: ' + doc.oznaka;
-    document.getElementById('np-client').value = doc.client_id || '';
-    document.getElementById('np-datum').value = doc.datum;
-    document.getElementById('np-disc-type').value = doc.disc_type || 'percent';
-    document.getElementById('np-disc-val').value = parseFloat(doc.disc_val) > 0 ? doc.disc_val : '';
-    document.getElementById('np-rok').value = doc.rok || '';
-    document.getElementById('np-napomena').value = doc.napomena || '';
+    editingJobId = j.id;
+    document.getElementById('nova-title').textContent = 'Izmena posla';
+    document.getElementById('np-client').value = j.client_id || '';
+    document.getElementById('np-datum').value = j.datum;
+    document.getElementById('np-disc-type').value = j.disc_type || 'percent';
+    document.getElementById('np-disc-val').value = parseFloat(j.disc_val) > 0 ? j.disc_val : '';
+    document.getElementById('np-rok').value = j.rok || '';
+    document.getElementById('np-napomena').value = j.napomena || '';
     renderPergolas(); renderGlasses(); calcSummary();
-    switchTab('nova');
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById('tab-novi').classList.add('active');
+    document.querySelector('.fab').style.display = 'none';
+    window.scrollTo(0, 0);
 }
 
 // ============================================
-// DOKUMENTI
+// IZDAVANJE DOKUMENATA
 // ============================================
-let docsDebounce = null;
-function debounceLoadDocs() { clearTimeout(docsDebounce); docsDebounce = setTimeout(loadDocs, 300); }
-function setDocsFilter(key, val, btn) {
-    docsFilter[key] = val;
-    btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    loadDocs();
-}
-async function loadDocs() {
-    const params = {};
-    if (docsFilter.type) params.type = docsFilter.type;
-    const q = document.getElementById('docs-search').value.trim();
-    if (q) params.q = q;
-    const docs = await apiGet('docs_list', params);
-    document.getElementById('docs-list').innerHTML = docs.map(docCard).join('')
-        || '<div class="empty-state"><div class="empty-icon">📂</div>Nema dokumenata.</div>';
+function openIssue(type) {
+    document.getElementById('iss-type').value = type;
+    document.getElementById('issue-title').textContent = 'Izdaj: ' + TYPE_LABEL[type];
+    document.getElementById('iss-kurs').value = SETTINGS.kurs_eur || '117.2';
+    document.getElementById('iss-note').textContent = type === 'faktura'
+        ? 'Konačni račun automatski odbija sve izdate avansne račune i iskazuje razliku za uplatu.'
+        : '';
+    issRefresh();
+    openOverlay('issue-overlay');
 }
 
-// ---------- DOC MODAL ----------
+function issRefresh() {
+    const valuta = document.querySelector('input[name="iss-valuta"]:checked').value;
+    document.getElementById('iss-kurs-group').style.display = valuta === 'RSD' ? 'block' : 'none';
+    if (!currentJob) return;
+    const type = document.getElementById('iss-type').value;
+    const kurs = valuta === 'RSD' ? (parseFloat(document.getElementById('iss-kurs').value) || 1) : 1;
+    let total = parseFloat(currentJob.total) * kurs;
+    if (type === 'faktura') {
+        (currentJob.documents || []).forEach(d => {
+            if (d.type !== 'avansni' || d.status === 'storniran') return;
+            const avEur = d.valuta === 'RSD' ? parseFloat(d.total) / (parseFloat(d.kurs) > 1 ? parseFloat(d.kurs) : kurs) : parseFloat(d.total);
+            total -= avEur * kurs;
+        });
+        document.getElementById('iss-preview-label').textContent = 'Za uplatu (posle odbitka avansa)';
+    } else {
+        document.getElementById('iss-preview-label').textContent = 'Iznos dokumenta';
+    }
+    document.getElementById('iss-preview-total').textContent = `${fmt(Math.max(0, total))} ${valuta}`;
+}
+
+async function doIssue() {
+    const type = document.getElementById('iss-type').value;
+    const valuta = document.querySelector('input[name="iss-valuta"]:checked').value;
+    const kurs = valuta === 'RSD' ? (parseFloat(document.getElementById('iss-kurs').value) || 0) : 1;
+    const r = await api('doc_issue', { job_id: currentJob.id, type, valuta, kurs });
+    if (r.error) { showToast(r.error, true); return; }
+    closeOverlay('issue-overlay');
+    showToast(`✓ Izdat: ${r.oznaka}`);
+    await openJob(currentJob.id);
+    openDoc(r.id);
+}
+
+async function issueAvansni(paymentId) {
+    const r = await api('doc_issue', { job_id: currentJob.id, type: 'avansni', payment_id: paymentId });
+    if (r.error) { showToast(r.error, true); return; }
+    showToast(`✓ Izdat avansni: ${r.oznaka}`);
+    await openJob(currentJob.id);
+    openDoc(r.id);
+}
+
+// ============================================
+// DOC MODAL (pregled dokumenta)
+// ============================================
 async function openDoc(id) {
     const doc = await apiGet('doc_get', { id });
     if (doc.error) { showToast(doc.error, true); return; }
     currentDoc = doc;
-    document.getElementById('doc-modal-title').textContent = `${TYPE_LABEL[doc.type]} ${doc.oznaka}`;
+    document.getElementById('doc-modal-title').textContent =
+        `${TYPE_LABEL[doc.type]} ${doc.oznaka}` + (doc.status === 'storniran' ? ' — STORNIRAN' : '');
     document.getElementById('doc-preview').innerHTML = buildDocHtml(doc);
-    renderDocStatus(doc);
-    renderDocChildren(doc);
     renderDocActions(doc);
-    document.getElementById('doc-payments').innerHTML = '';
-    const showPays = (doc.type === 'ponuda' && ['prihvaceno','zavrseno'].includes(doc.status))
-                  || (doc.type !== 'ponuda' && doc.status !== 'storniran');
-    if (showPays) renderDocPayments(doc.id);
     document.getElementById('doc-modal').classList.add('show');
 }
 function closeDocModal() { document.getElementById('doc-modal').classList.remove('show'); currentDoc = null; }
-
-function renderDocStatus(doc) {
-    const flows = doc.type === 'ponuda'
-        ? ['nacrt','poslato','prihvaceno','odbijeno','zavrseno']
-        : ['izdat','placen','storniran'];
-    document.getElementById('doc-modal-status').innerHTML =
-        `<div class="filter-row" style="margin:0;">` +
-        flows.map(s => `<button class="filter-btn ${doc.status===s?'active':''}" onclick="setDocStatus(${doc.id},'${s}')">${STATUS_INFO[s].label}</button>`).join('') +
-        `</div>`;
-}
-async function setDocStatus(id, status) {
-    const r = await api('doc_status', { id, status });
-    if (r.error) { showToast(r.error, true); return; }
-    showToast('Status: ' + STATUS_INFO[status].label);
-    openDoc(id);
-}
-
-function renderDocChildren(doc) {
-    const el = document.getElementById('doc-children');
-    if (!doc.children || !doc.children.length) { el.innerHTML = ''; return; }
-    el.innerHTML = `<div class="card"><div class="card-title" style="margin-bottom:10px;">Povezani dokumenti</div>` +
-        doc.children.map(c => `
-            <div class="summary-row" style="cursor:pointer;" onclick="openDoc(${c.id})">
-                <span class="sum-label">${TYPE_LABEL[c.type]} <strong style="color:var(--accent);">${esc(c.oznaka)}</strong> ${statusBadge(c.status)}</span>
-                <span class="sum-value">${fmt(c.total)} ${c.valuta}</span>
-            </div>`).join('') + `</div>`;
-}
 
 function renderDocActions(doc) {
     const a = document.getElementById('doc-modal-actions');
     let btns = '';
     btns += `<button class="btn btn-accent" onclick="downloadDocPDF()">↓ PDF</button>`;
     btns += `<button class="btn btn-outline" onclick="shareDoc(${doc.id})">🔗 Link (WA/Viber)</button>`;
-    btns += `<button class="btn btn-outline" onclick="copyDocText()">❐ Kopiraj tekst</button>`;
-    if (doc.type === 'ponuda') {
-        btns += `<button class="btn btn-outline" onclick="editOffer(currentDoc)">✎ Izmeni</button>`;
-        btns += `<button class="btn btn-success" onclick="openConvert(${doc.id})">→ Predračun / Račun</button>`;
+    btns += `<button class="btn btn-outline" onclick="copyDocText()">❐ Tekst</button>`;
+    if (doc.type !== 'ponuda') {
+        btns += `<button class="btn btn-outline" onclick="stornoDoc(${doc.id})">${doc.status === 'storniran' ? '↩ Vrati' : '⊘ Storno'}</button>`;
+        btns += `<button class="btn btn-danger" onclick="deleteDoc(${doc.id})">🗑</button>`;
     }
-    btns += `<button class="btn btn-danger" onclick="deleteDoc(${doc.id})">🗑</button>`;
     a.innerHTML = btns;
+}
+
+async function stornoDoc(id) {
+    const r = await api('doc_storno', { id });
+    if (r.error) { showToast(r.error, true); return; }
+    showToast(r.status === 'storniran' ? 'Dokument storniran' : 'Dokument ponovo aktivan');
+    closeDocModal();
+    if (currentJob) openJob(currentJob.id);
 }
 
 async function deleteDoc(id) {
@@ -511,7 +721,7 @@ async function deleteDoc(id) {
     if (r.error) { showToast(r.error, true); return; }
     closeDocModal();
     showToast('Dokument obrisan');
-    loadDocs();
+    if (currentJob) openJob(currentJob.id);
 }
 
 async function shareDoc(id) {
@@ -525,7 +735,7 @@ async function shareDoc(id) {
     showToast('Link kopiran — nalepi u Viber/WhatsApp');
 }
 
-// ---------- HTML preview dokumenta ----------
+// ---------- HTML pregled dokumenta ----------
 function getClientInfo(doc) {
     return {
         naziv: doc.klijent_naziv || '—',
@@ -536,29 +746,43 @@ function getClientInfo(doc) {
     };
 }
 
+function totalLabel(doc) {
+    return doc.type === 'faktura' && doc.items.some(i => i.kind === 'avans_minus') ? 'ZA UPLATU' : 'UKUPNO';
+}
+
 function buildDocHtml(doc) {
     const k = getClientInfo(doc);
     const val = doc.valuta;
     const isRacun = doc.type !== 'ponuda';
-    const pdvOn = parseFloat(doc.pdv_amount) > 0;
     const rows = doc.items.map((it, i) => `
         <tr>
             <td>${i+1}</td>
             <td>${esc(it.naziv)}${it.opis ? `<br><small style="color:#888">${esc(it.opis)}</small>` : ''}</td>
-            <td style="text-align:right;font-weight:700;white-space:nowrap;">${fmt(it.iznos)} ${val}</td>
+            <td style="text-align:right;font-weight:700;white-space:nowrap;${parseFloat(it.iznos) < 0 ? 'color:#e74c3c;' : ''}">${fmt(it.iznos)} ${val}</td>
         </tr>`).join('');
-    const osnovica = parseFloat(doc.total) - parseFloat(doc.pdv_amount);
+
+    let pdvBlock = '';
+    if (doc.pdv_mode === 'standard' && parseFloat(doc.pdv_amount) > 0) {
+        const osnovica = parseFloat(doc.total) - parseFloat(doc.pdv_amount);
+        pdvBlock = `<div style="text-align:right;font-size:13px;color:#555;">Osnovica: ${fmt(osnovica)} ${val}<br>PDV (${parseFloat(doc.pdv_rate)}%): ${fmt(doc.pdv_amount)} ${val}</div>`;
+    }
+    let pdvNote = '';
+    if (doc.pdv_mode === 'cl10' && doc.pdv_napomena) {
+        pdvNote = `<div class="info-note" style="border:1px solid #e0b050;background:#fdf6e8;"><strong>⚖</strong> ${esc(doc.pdv_napomena)}</div>`;
+    } else if (isRacun && doc.pdv_mode === 'none' && doc.pdv_napomena) {
+        pdvNote = `<div class="info-note">${esc(doc.pdv_napomena)}</div>`;
+    }
+
     return `
         <h2>${esc(SETTINGS.firma_naziv)}</h2>
         ${isRacun && SETTINGS.firma_pib ? `<div style="text-align:center;font-size:11px;color:#666;">PIB: ${esc(SETTINGS.firma_pib)} · MB: ${esc(SETTINGS.firma_mb)}${SETTINGS.firma_adresa ? ' · ' + esc(SETTINGS.firma_adresa) + ', ' + esc(SETTINGS.firma_mesto) : ''}</div>` : ''}
-        <h3>${TYPE_LABEL[doc.type].toUpperCase()} br. ${esc(doc.oznaka)}</h3>
+        <h3>${TYPE_LABEL[doc.type].toUpperCase()} br. ${esc(doc.oznaka)}${doc.status === 'storniran' ? ' — STORNIRAN' : ''}</h3>
         <div style="font-size:13px;margin-bottom:12px;">
             <strong>Datum:</strong> ${fmtDate(doc.datum)}<br>
             <strong>Klijent:</strong> ${esc(k.naziv)}${k.tip === 'pravno' ? ' (pravno lice)' : ''}<br>
             ${k.adresa ? `<strong>Adresa:</strong> ${esc(k.adresa)}<br>` : ''}
             ${k.tel ? `<strong>Telefon:</strong> ${esc(k.tel)}<br>` : ''}
             ${k.pib ? `<strong>PIB:</strong> ${esc(k.pib)} &nbsp; <strong>MB:</strong> ${esc(k.mb)}<br>` : ''}
-            ${doc.parent_id && doc.parent_oznaka ? `<strong>Po ponudi:</strong> ${esc(doc.parent_oznaka)}<br>` : ''}
         </div>
         <div class="section-header">SPECIFIKACIJA</div>
         <table>
@@ -570,13 +794,13 @@ function buildDocHtml(doc) {
         <div style="margin-top:14px;padding-top:10px;border-top:1px solid #ddd;">
             <div style="text-align:right;font-size:14px;">Međuzbir: ${fmt(doc.subtotal)} ${val}</div>
             ${parseFloat(doc.disc_amount) > 0 ? `<div style="text-align:right;color:#e74c3c;font-size:14px;">Popust: -${fmt(doc.disc_amount)} ${val}</div>` : ''}
-            ${pdvOn ? `<div style="text-align:right;font-size:13px;color:#555;">Osnovica: ${fmt(osnovica)} ${val}<br>PDV (${parseFloat(doc.pdv_rate)}%): ${fmt(doc.pdv_amount)} ${val}</div>` : ''}
+            ${pdvBlock}
         </div>
-        <div class="total-line">UKUPNO: ${fmt(doc.total)} ${val}</div>
+        <div class="total-line">${totalLabel(doc)}: ${fmt(doc.total)} ${val}</div>
         ${doc.rok ? `<div style="margin-top:12px;font-size:13px;"><strong>Rok realizacije:</strong> ${esc(doc.rok)}</div>` : ''}
         ${doc.napomena ? `<div style="margin-top:8px;font-size:13px;"><strong>Napomena:</strong> ${esc(doc.napomena)}</div>` : ''}
         ${isRacun && SETTINGS.firma_ziro ? `<div class="info-note"><strong>Podaci za uplatu:</strong><br>Tekući račun: ${esc(SETTINGS.firma_ziro)}${SETTINGS.firma_banka ? ' (' + esc(SETTINGS.firma_banka) + ')' : ''}<br>Poziv na broj: ${esc(doc.oznaka)}</div>` : ''}
-        ${isRacun && SETTINGS.pdv_enabled === '0' ? `<div class="info-note">${esc(SETTINGS.pdv_napomena)}</div>` : ''}
+        ${pdvNote}
         <div class="footer-note">
             ${esc(SETTINGS.firma_naziv)} | Tel: ${esc(SETTINGS.kontakt_tel)} - ${esc(SETTINGS.kontakt_ime)}<br>
             ${doc.type === 'ponuda' ? `Ponuda važi ${esc(SETTINGS.ponuda_vazi_dana || '7')} dana od datuma izdavanja.` : ''}
@@ -606,13 +830,17 @@ async function copyDocText() {
     doc.items.forEach((it, i) => {
         t += `${i+1}. ${it.naziv}\n`;
         if (it.opis) t += `   ${it.opis}\n`;
-        t += `   *Cena: ${fmt(it.iznos)} ${val}*\n\n`;
+        t += `   *${parseFloat(it.iznos) < 0 ? '' : 'Cena: '}${fmt(it.iznos)} ${val}*\n\n`;
     });
     t += `━━━━━━━━━━━━━━━━━━━━\n`;
     t += `Međuzbir: ${fmt(doc.subtotal)} ${val}\n`;
     if (parseFloat(doc.disc_amount) > 0) t += `Popust: -${fmt(doc.disc_amount)} ${val}\n`;
-    if (parseFloat(doc.pdv_amount) > 0) t += `PDV (${parseFloat(doc.pdv_rate)}%): ${fmt(doc.pdv_amount)} ${val}\n`;
-    t += `\n*UKUPNO: ${fmt(doc.total)} ${val}*\n\n`;
+    if (doc.pdv_mode === 'standard' && parseFloat(doc.pdv_amount) > 0) {
+        t += `Osnovica: ${fmt(parseFloat(doc.total) - parseFloat(doc.pdv_amount))} ${val}\n`;
+        t += `PDV (${parseFloat(doc.pdv_rate)}%): ${fmt(doc.pdv_amount)} ${val}\n`;
+    }
+    t += `\n*${totalLabel(doc)}: ${fmt(doc.total)} ${val}*\n\n`;
+    if (doc.pdv_mode === 'cl10' && doc.pdv_napomena) t += `${doc.pdv_napomena}\n\n`;
     if (doc.rok) t += `Rok realizacije: ${doc.rok}\n`;
     if (doc.napomena) t += `Napomena: ${doc.napomena}\n`;
     if (doc.type === 'ponuda') t += `\nPonuda važi ${SETTINGS.ponuda_vazi_dana || 7} dana.\n`;
@@ -654,7 +882,7 @@ function downloadDocPDF() {
     y = 44;
 
     pdf.setTextColor(50,50,50); pdf.setFontSize(14); pdf.setFont('DejaVu','bold');
-    pdf.text(TYPE_LABEL[doc.type].toUpperCase() + ' ' + doc.oznaka, M, y);
+    pdf.text(TYPE_LABEL[doc.type].toUpperCase() + ' ' + doc.oznaka + (doc.status === 'storniran' ? ' — STORNIRAN' : ''), M, y);
     pdf.setFontSize(10); pdf.setFont('DejaVu','normal'); pdf.setTextColor(100,100,100);
     pdf.text('Datum: ' + fmtDate(doc.datum), W-M, y, { align:'right' });
     y += 7; line(y); y += 8;
@@ -686,7 +914,9 @@ function downloadDocPDF() {
         const nameLines = pdf.splitTextToSize(it.naziv, CW - 50);
         pdf.text(nameLines, M+10, y);
         pdf.setFont('DejaVu','bold');
+        if (parseFloat(it.iznos) < 0) pdf.setTextColor(200,60,50);
         pdf.text(`${fmt(it.iznos)} ${val}`, M+CW-3, y, { align:'right' });
+        pdf.setTextColor(50,50,50);
         pdf.setFont('DejaVu','normal');
         y += nameLines.length * 4.5;
         if (it.opis) {
@@ -713,7 +943,7 @@ function downloadDocPDF() {
         pdf.text(`-${fmt(doc.disc_amount)} ${val}`, W-M, y, { align:'right' }); y += 6;
         pdf.setTextColor(80,80,80);
     }
-    if (parseFloat(doc.pdv_amount) > 0) {
+    if (doc.pdv_mode === 'standard' && parseFloat(doc.pdv_amount) > 0) {
         const osn = parseFloat(doc.total) - parseFloat(doc.pdv_amount);
         pdf.text('Osnovica:', M, y);
         pdf.text(`${fmt(osn)} ${val}`, W-M, y, { align:'right' }); y += 6;
@@ -723,11 +953,20 @@ function downloadDocPDF() {
     y += 2;
     pdf.setFillColor(26,26,46); pdf.rect(M, y-5, CW, 12, 'F');
     pdf.setTextColor(212,165,116); pdf.setFontSize(13); pdf.setFont('DejaVu','bold');
-    pdf.text('UKUPNO:', M+4, y+2.5);
+    pdf.text(totalLabel(doc) + ':', M+4, y+2.5);
     pdf.text(`${fmt(doc.total)} ${val}`, W-M-4, y+2.5, { align:'right' });
     y += 15;
 
     pdf.setFont('DejaVu','normal'); pdf.setFontSize(9.5); pdf.setTextColor(50,50,50);
+    if (doc.pdv_mode === 'cl10' && doc.pdv_napomena) {
+        ckPage(18);
+        const cl = pdf.splitTextToSize(doc.pdv_napomena, CW - 6);
+        pdf.setFillColor(253,246,232); pdf.rect(M, y-3, CW, cl.length * 4 + 6, 'F');
+        pdf.setFontSize(8.5); pdf.setTextColor(150,110,30);
+        pdf.text(cl, M+3, y+2);
+        y += cl.length * 4 + 8;
+        pdf.setFontSize(9.5); pdf.setTextColor(50,50,50);
+    }
     if (doc.rok) { ckPage(8); pdf.setFont('DejaVu','bold'); pdf.text('Rok realizacije: ', M, y); pdf.setFont('DejaVu','normal'); pdf.text(doc.rok, M+33, y); y += 7; }
     if (doc.napomena) {
         ckPage(16); pdf.setFont('DejaVu','bold'); pdf.text('Napomena:', M, y); pdf.setFont('DejaVu','normal');
@@ -743,10 +982,10 @@ function downloadDocPDF() {
         pdf.text(`Poziv na broj: ${doc.oznaka}`, M+3, y+11);
         y += 20;
     }
-    if (isRacun && SETTINGS.pdv_enabled === '0' && SETTINGS.pdv_napomena) {
+    if (isRacun && doc.pdv_mode === 'none' && doc.pdv_napomena) {
         ckPage(12);
         pdf.setFontSize(7.5); pdf.setTextColor(120,120,120);
-        const pl = pdf.splitTextToSize(SETTINGS.pdv_napomena, CW);
+        const pl = pdf.splitTextToSize(doc.pdv_napomena, CW);
         pdf.text(pl, M, y); y += pl.length * 4 + 3;
     }
 
@@ -762,169 +1001,44 @@ function downloadDocPDF() {
 }
 
 // ============================================
-// KONVERZIJA ponuda -> predracun/avansni/faktura
+// UPLATE
 // ============================================
-function openConvert(parentId) {
-    document.getElementById('cv-parent-id').value = parentId;
-    document.getElementById('cv-kurs').value = SETTINGS.kurs_eur || '117.2';
-    cvRefresh();
-    openOverlay('convert-overlay');
-}
-
-function cvRefresh() {
-    const type = document.querySelector('input[name="cv-type"]:checked').value;
-    const valuta = document.querySelector('input[name="cv-valuta"]:checked').value;
-    document.getElementById('cv-kurs-group').style.display = valuta === 'RSD' ? 'block' : 'none';
-    document.getElementById('cv-avans-group').style.display = type === 'avansni' ? 'block' : 'none';
-    if (!currentDoc) return;
-    const kurs = valuta === 'RSD' ? (parseFloat(document.getElementById('cv-kurs').value) || 1) : 1;
-    let total = parseFloat(currentDoc.total) * kurs;
-    if (type === 'avansni') total = total * (parseFloat(document.getElementById('cv-avans').value) || 0) / 100;
-    document.getElementById('cv-preview-total').textContent = `${fmt(total)} ${valuta}`;
-}
-
-async function doConvert() {
-    const parent = currentDoc;
-    const type = document.querySelector('input[name="cv-type"]:checked').value;
-    const valuta = document.querySelector('input[name="cv-valuta"]:checked').value;
-    const kurs = valuta === 'RSD' ? (parseFloat(document.getElementById('cv-kurs').value) || 1) : 1;
-    const avansPct = parseFloat(document.getElementById('cv-avans').value) || 50;
-
-    let items, subtotal, discAmount, total;
-    if (type === 'avansni') {
-        const fullTotal = parseFloat(parent.total) * kurs;
-        total = Math.round(fullTotal * avansPct / 100 * 100) / 100;
-        items = [{
-            kind: 'avans',
-            naziv: `Avans ${avansPct}% po ponudi ${parent.oznaka}`,
-            opis: `Ukupna vrednost ponude: ${fmt(fullTotal)} ${valuta}`,
-            iznos: total
-        }];
-        subtotal = total; discAmount = 0;
-    } else {
-        items = parent.items.map(it => ({ ...it, iznos: Math.round(it.iznos * kurs * 100) / 100 }));
-        subtotal = Math.round(parent.subtotal * kurs * 100) / 100;
-        discAmount = Math.round(parent.disc_amount * kurs * 100) / 100;
-        total = Math.round(parent.total * kurs * 100) / 100;
-    }
-
-    // PDV (uracunat u cenu) ako je firma u sistemu PDV-a
-    let pdvRate = 0, pdvAmount = 0;
-    if (SETTINGS.pdv_enabled === '1') {
-        pdvRate = parseFloat(SETTINGS.pdv_rate) || 20;
-        pdvAmount = Math.round((total - total / (1 + pdvRate / 100)) * 100) / 100;
-    }
-
-    const r = await api('doc_save', {
-        type, parent_id: parent.id, client_id: parent.client_id,
-        datum: new Date().toISOString().split('T')[0],
-        valuta, kurs, items,
-        subtotal, disc_type: parent.disc_type, disc_val: type === 'avansni' ? 0 : parent.disc_val,
-        disc_amount: discAmount, pdv_rate: pdvRate, pdv_amount: pdvAmount, total,
-        avans_procenat: type === 'avansni' ? avansPct : 0,
-        rok: parent.rok, napomena: '',
-    });
-    if (r.error) { showToast(r.error, true); return; }
-    closeOverlay('convert-overlay');
-    showToast(`✓ Kreiran: ${r.oznaka}`);
-    openDoc(r.id);
-}
-
-// ============================================
-// UGOVORI
-// ============================================
-async function loadContracts() {
-    const rows = await apiGet('contracts_list');
-    // Objedinjen presek u EUR (RSD racuni konvertovani po svom kursu)
-    let ugovoreno = 0, uplaceno = 0, aktivni = 0;
-    rows.forEach(r => {
-        ugovoreno += parseFloat(r.total_eur) || 0;
-        uplaceno  += parseFloat(r.uplaceno_eur) || 0;
-        if (['prihvaceno','izdat'].includes(r.status)) aktivni++;
-    });
-    document.getElementById('contracts-stats').innerHTML = `
-        <div class="stat-box"><div class="stat-num">${aktivni}</div><div class="stat-label">Aktivni ugovori</div></div>
-        <div class="stat-box"><div class="stat-num">${fmt(ugovoreno)}</div><div class="stat-label">Ugovoreno (EUR)</div></div>
-        <div class="stat-box"><div class="stat-num" style="color:#4caf50;">${fmt(uplaceno)}</div><div class="stat-label">Uplaćeno (EUR)</div></div>
-        <div class="stat-box"><div class="stat-num" style="color:#ff9800;">${fmt(ugovoreno - uplaceno)}</div><div class="stat-label">Potraživanja (EUR)</div></div>`;
-    document.getElementById('contracts-list').innerHTML = rows.map(r => {
-        const pct = parseFloat(r.total) > 0 ? Math.min(100, parseFloat(r.uplaceno) / parseFloat(r.total) * 100) : 0;
-        const preostalo = parseFloat(r.total) - parseFloat(r.uplaceno);
-        return `
-        <div class="list-card" onclick="openDoc(${r.id})">
-            <div class="lc-head">
-                <div>
-                    <div class="lc-title">${esc(r.klijent || '—')}${r.klijent_tip === 'pravno' ? ' <span class="badge badge-blue">Pravno lice</span>' : ''}</div>
-                    <div class="lc-meta">${TYPE_LABEL[r.type]} <strong>${esc(r.oznaka)}</strong> · ${fmtDate(r.datum)}${r.rok ? ' · ⏱ ' + esc(r.rok) : ''}</div>
-                </div>
-                ${statusBadge(r.status)}
-            </div>
-            <div class="lc-amount">${fmt(r.total)} ${r.valuta}</div>
-            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;"></div></div>
-            <div class="lc-meta">Uplaćeno: <strong style="color:#4caf50;">${fmt(r.uplaceno)}</strong> · Preostalo: <strong style="color:${preostalo > 0.005 ? '#ff9800' : '#4caf50'};">${fmt(preostalo)}</strong> ${r.valuta}</div>
-        </div>`;
-    }).join('') || '<div class="empty-state"><div class="empty-icon">🤝</div>Nema ugovora.<br>Označi ponudu statusom <strong>Prihvaćeno</strong> ili izdaj račun pravnom licu.</div>';
-}
-
-// ---------- Uplate ----------
-// Uplata u valutu dokumenta: uplata na RSD racunu koristi kurs tog racuna
-function payInValuta(p, valuta) {
-    const iznos = parseFloat(p.iznos) || 0;
-    const pv = p.valuta || p.doc_valuta || valuta;
-    if (pv === valuta) return iznos;
-    const kurs = (parseFloat(p.doc_kurs) > 1 ? parseFloat(p.doc_kurs) : parseFloat(SETTINGS.kurs_eur)) || 117.2;
-    return pv === 'RSD' ? iznos / kurs : iznos * kurs;
-}
-
-async function renderDocPayments(docId) {
-    // family=1: i uplate na povezanim dokumentima (predracun/avansni/faktura iz ove ponude)
-    const pays = await apiGet('payments_list', { doc_id: docId, family: 1 });
-    const total = parseFloat(currentDoc.total);
-    const sum = pays.reduce((s, p) => s + payInValuta(p, currentDoc.valuta), 0);
-    const rows = pays.map(p => `
-        <tr>
-            <td>${fmtDate(p.datum)}</td>
-            <td>${esc(p.nacin)}${p.napomena ? ' — ' + esc(p.napomena) : ''}${p.document_id != docId ? `<br><small style="color:var(--text-secondary);">preko ${esc(p.doc_oznaka)}</small>` : ''}</td>
-            <td style="text-align:right;font-weight:700;white-space:nowrap;">${fmt(p.iznos)} ${esc(p.valuta || currentDoc.valuta)}</td>
-            <td><button class="del-x" onclick="deletePayment(${p.id})">🗑</button></td>
-        </tr>`).join('');
-    document.getElementById('doc-payments').innerHTML = `
-    <div class="card">
-        <div class="card-header" style="margin-bottom:6px;">
-            <span class="card-title">💰 Uplate</span>
-            <button class="btn btn-success btn-sm" onclick="openPaymentForm(${docId})">+ Uplata</button>
-        </div>
-        ${pays.length ? `<table class="payments-table"><tr><th>Datum</th><th>Način</th><th style="text-align:right;">Iznos</th><th></th></tr>${rows}</table>` : '<div style="color:var(--text-secondary);font-size:13px;padding:8px 0;">Još nema uplata.</div>'}
-        <div class="summary-row"><span class="sum-label">Uplaćeno</span><span class="sum-value" style="color:#4caf50;">${fmt(sum)} ${currentDoc.valuta}</span></div>
-        <div class="summary-row"><span class="sum-label">Preostalo</span><span class="sum-value" style="color:${total - sum > 0.005 ? '#ff9800' : '#4caf50'};">${fmt(total - sum)} ${currentDoc.valuta}</span></div>
-    </div>`;
-}
-function openPaymentForm(docId) {
-    document.getElementById('pay-doc-id').value = docId;
+function openPaymentForm() {
+    document.getElementById('pay-job-id').value = currentJob.id;
     document.getElementById('pay-datum').value = new Date().toISOString().split('T')[0];
     document.getElementById('pay-iznos').value = '';
     document.getElementById('pay-napomena').value = '';
+    document.getElementById('pay-v-eur').checked = true;
+    document.getElementById('pay-kurs').value = SETTINGS.kurs_eur || '117.2';
+    payToggleKurs();
     openOverlay('payment-overlay');
 }
+function payToggleKurs() {
+    const rsd = document.querySelector('input[name="pay-valuta"]:checked').value === 'RSD';
+    document.getElementById('pay-kurs-group').style.display = rsd ? 'block' : 'none';
+}
 async function savePayment() {
-    const docId = parseInt(document.getElementById('pay-doc-id').value);
+    const jobId = parseInt(document.getElementById('pay-job-id').value);
+    const valuta = document.querySelector('input[name="pay-valuta"]:checked').value;
     const r = await api('payment_save', {
-        document_id: docId,
+        job_id: jobId,
         datum: document.getElementById('pay-datum').value,
         iznos: parseFloat(document.getElementById('pay-iznos').value) || 0,
-        valuta: currentDoc ? currentDoc.valuta : 'EUR',
+        valuta,
+        kurs: valuta === 'RSD' ? (parseFloat(document.getElementById('pay-kurs').value) || 0) : 1,
         nacin: document.getElementById('pay-nacin').value,
         napomena: document.getElementById('pay-napomena').value,
     });
     if (r.error) { showToast(r.error, true); return; }
     closeOverlay('payment-overlay');
     showToast('✓ Uplata zabeležena');
-    renderDocPayments(docId);
+    openJob(jobId);
 }
 async function deletePayment(id) {
     if (!confirm('Obrisati uplatu?')) return;
-    await api('payment_delete', { id });
-    renderDocPayments(currentDoc.id);
+    const r = await api('payment_delete', { id });
+    if (r.error) { showToast(r.error, true); return; }
+    openJob(currentJob.id);
 }
 
 // ============================================
@@ -948,7 +1062,12 @@ async function renderClients() {
     const q = document.getElementById('clients-search').value.trim();
     const list = q ? await apiGet('clients_list', { q }) : (CLIENTS.length ? CLIENTS : await apiGet('clients_list'));
     if (!q) CLIENTS = list;
-    document.getElementById('clients-list').innerHTML = list.map(c => `
+    document.getElementById('clients-list').innerHTML = list.map(c => {
+        const dug = parseFloat(c.dug_eur) || 0;
+        const stanje = c.broj_poslova > 0
+            ? (dug > 0.005 ? `duguje <strong style="color:var(--warning);">${fmt(dug)} €</strong>` : '<strong style="color:var(--success);">izmireno ✓</strong>')
+            : '';
+        return `
         <div class="list-card" onclick="openClientForm(${c.id}, false)">
             <div class="lc-head">
                 <div>
@@ -956,11 +1075,14 @@ async function renderClients() {
                     <div class="lc-meta">
                         ${c.telefon ? '📞 ' + esc(c.telefon) : ''}${c.mesto ? ' · 📍 ' + esc(c.mesto) : ''}
                         ${c.tip === 'pravno' ? `<br>PIB: ${esc(c.pib)} · MB: ${esc(c.mb)}` : ''}
+                        ${c.broj_poslova > 0 ? `<br>${c.broj_poslova} ${c.broj_poslova === 1 ? 'posao' : 'posla'} · ${stanje}` : ''}
                     </div>
                 </div>
-                <span class="badge ${c.tip === 'pravno' ? 'badge-blue' : 'badge-gold'}">${c.tip === 'pravno' ? 'Pravno lice' : 'Fizičko lice'}</span>
+                <span class="badge ${c.tip === 'pravno' ? (c.pdv_mode === 'cl10' ? 'badge-orange' : 'badge-blue') : 'badge-gold'}">
+                    ${c.tip === 'pravno' ? (c.pdv_mode === 'cl10' ? 'Čl. 10' : 'Pravno lice') : 'Fizičko lice'}</span>
             </div>
-        </div>`).join('') || '<div class="empty-state"><div class="empty-icon">👥</div>Nema klijenata.</div>';
+        </div>`;
+    }).join('') || '<div class="empty-state"><div class="empty-icon">👥</div>Nema klijenata.</div>';
 }
 
 let clientFormReturnToOffer = false;
@@ -970,6 +1092,7 @@ function openClientForm(id, returnToOffer) {
     document.getElementById('client-form-title').textContent = c ? 'Izmena klijenta' : 'Novi klijent';
     document.getElementById('cf-id').value = c ? c.id : '';
     document.getElementById(c && c.tip === 'pravno' ? 'cf-tip-p' : 'cf-tip-f').checked = true;
+    document.getElementById(c && c.pdv_mode === 'cl10' ? 'cf-pdv-c10' : 'cf-pdv-std').checked = true;
     document.getElementById('cf-naziv').value = c ? c.naziv : '';
     document.getElementById('cf-telefon').value = c ? c.telefon : '';
     document.getElementById('cf-email').value = c ? c.email : '';
@@ -990,6 +1113,7 @@ async function saveClient() {
     const payload = {
         id: document.getElementById('cf-id').value || null,
         tip: document.querySelector('input[name="cf-tip"]:checked').value,
+        pdv_mode: document.querySelector('input[name="cf-pdv"]:checked').value,
         naziv: document.getElementById('cf-naziv').value,
         telefon: document.getElementById('cf-telefon').value,
         email: document.getElementById('cf-email').value,
@@ -1012,7 +1136,8 @@ async function saveClient() {
 // PODESAVANJA
 // ============================================
 const SETTING_KEYS = ['firma_naziv','firma_podnaslov','firma_adresa','firma_mesto','firma_pib','firma_mb',
-    'firma_ziro','firma_banka','kontakt_ime','kontakt_tel','kontakt_email','pdv_rate','pdv_napomena','kurs_eur','ponuda_vazi_dana'];
+    'firma_ziro','firma_banka','kontakt_ime','kontakt_tel','kontakt_email','pdv_rate','pdv_napomena',
+    'pdv_cl10_napomena','kurs_eur','ponuda_vazi_dana'];
 
 function fillSettingsForm() {
     SETTING_KEYS.forEach(k => {
@@ -1021,6 +1146,7 @@ function fillSettingsForm() {
     });
     document.getElementById(SETTINGS.pdv_enabled === '1' ? 's-pdv-da' : 's-pdv-ne').checked = true;
 }
+
 async function changePassword() {
     const cur  = document.getElementById('s-pass-current').value;
     const np   = document.getElementById('s-pass-new').value;

@@ -8,9 +8,9 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Generator Ponuda — PROHORECA AG GROUP</title>
+    <title>Poslovi — PROHORECA AG GROUP</title>
     <meta name="theme-color" content="#d4a574">
-    <link rel="stylesheet" href="assets/style.css?v=1">
+    <link rel="stylesheet" href="assets/style.css?v=2">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
@@ -18,31 +18,40 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 <div class="header">
     <div>
         <h1>PROHORECA AG GROUP</h1>
-        <p>Ponude · Predračuni · Fakture · Ugovori</p>
+        <p>Poslovi · Ponude · Računi · Potraživanja</p>
     </div>
     <button class="logout" onclick="logout()">Odjava</button>
 </div>
 
-<div class="tabs">
-    <button class="tab-btn active" data-tab="pocetna" onclick="switchTab('pocetna')">Početna</button>
-    <button class="tab-btn" data-tab="nova" onclick="switchTab('nova')">+ Nova ponuda</button>
-    <button class="tab-btn" data-tab="dokumenti" onclick="switchTab('dokumenti')">Dokumenti</button>
-    <button class="tab-btn" data-tab="ugovori" onclick="switchTab('ugovori')">Ugovori</button>
-    <button class="tab-btn" data-tab="klijenti" onclick="switchTab('klijenti')">Klijenti</button>
-    <button class="tab-btn" data-tab="podesavanja" onclick="switchTab('podesavanja')">⚙</button>
+<!-- ===== POSLOVI (glavna lista) ===== -->
+<div id="tab-poslovi" class="section active">
+    <input type="text" class="search-input" id="jobs-search" placeholder="🔍 Ime, mesto ili broj dokumenta…" oninput="renderJobs()">
+    <div class="stat-grid-3" id="jobs-stats"></div>
+    <div class="filter-row" id="jobs-filter">
+        <button class="filter-btn active" data-f="svi" onclick="setJobsFilter(this)">Svi</button>
+        <button class="filter-btn" data-f="ponude" onclick="setJobsFilter(this)">Ponude</button>
+        <button class="filter-btn" data-f="utoku" onclick="setJobsFilter(this)">U toku</button>
+        <button class="filter-btn" data-f="duguju" onclick="setJobsFilter(this)">Duguju nam</button>
+        <button class="filter-btn" data-f="zavrseni" onclick="setJobsFilter(this)">Završeni</button>
+    </div>
+    <div id="jobs-list"></div>
 </div>
 
-<!-- ===== POCETNA ===== -->
-<div id="tab-pocetna" class="section active">
-    <h2 class="section-title">Pregled</h2>
-    <div class="stat-grid" id="dash-stats"></div>
-    <h3 style="color:var(--accent);font-size:15px;margin:18px 0 10px;">Poslednji dokumenti</h3>
-    <div id="dash-recent"></div>
+<!-- ===== DETALJ POSLA ===== -->
+<div id="tab-posao" class="section">
+    <div class="dethead">
+        <button class="back" onclick="switchTab('poslovi')">‹</button>
+        <div><div class="t" id="jd-title"></div><div class="s" id="jd-sub"></div></div>
+    </div>
+    <div id="jd-body"></div>
 </div>
 
-<!-- ===== NOVA PONUDA (kalkulator) ===== -->
-<div id="tab-nova" class="section">
-    <h2 class="section-title" id="nova-title">Nova ponuda</h2>
+<!-- ===== NOVI POSAO (kalkulator) ===== -->
+<div id="tab-novi" class="section">
+    <div class="dethead">
+        <button class="back" onclick="cancelCalculator()">‹</button>
+        <div><div class="t" id="nova-title">Novi posao</div><div class="s">Kalkulator pergola i stakla</div></div>
+    </div>
 
     <div class="card">
         <div class="form-group">
@@ -53,7 +62,7 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
             </div>
         </div>
         <div class="form-group">
-            <label>Datum ponude</label>
+            <label>Datum</label>
             <input type="date" id="np-datum">
         </div>
     </div>
@@ -100,40 +109,19 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
         </div>
         <div class="form-group">
             <label>Napomena</label>
-            <textarea id="np-napomena" placeholder="Dodatne napomene za ponudu..."></textarea>
+            <textarea id="np-napomena" placeholder="Dodatne napomene..."></textarea>
         </div>
     </div>
 
-    <button class="btn btn-success" onclick="saveOffer()">💾 Sačuvaj ponudu</button>
-    <button class="btn btn-danger" onclick="resetCalculator(true)">Odbaci / Nova</button>
-</div>
-
-<!-- ===== DOKUMENTI ===== -->
-<div id="tab-dokumenti" class="section">
-    <h2 class="section-title">Dokumenti</h2>
-    <input type="text" class="search-input" id="docs-search" placeholder="Pretraži po klijentu, broju, mestu..." oninput="debounceLoadDocs()">
-    <div class="filter-row" id="docs-type-filter">
-        <button class="filter-btn active" data-v="" onclick="setDocsFilter('type','',this)">Sve</button>
-        <button class="filter-btn" data-v="ponuda" onclick="setDocsFilter('type','ponuda',this)">Ponude</button>
-        <button class="filter-btn" data-v="predracun" onclick="setDocsFilter('type','predracun',this)">Predračuni</button>
-        <button class="filter-btn" data-v="avansni" onclick="setDocsFilter('type','avansni',this)">Avansni</button>
-        <button class="filter-btn" data-v="faktura" onclick="setDocsFilter('type','faktura',this)">Fakture</button>
-    </div>
-    <div id="docs-list"></div>
-</div>
-
-<!-- ===== UGOVORI ===== -->
-<div id="tab-ugovori" class="section">
-    <h2 class="section-title">Ugovori i potraživanja</h2>
-    <div class="stat-grid" id="contracts-stats"></div>
-    <div id="contracts-list"></div>
+    <button class="btn btn-success" onclick="saveJob()">💾 Sačuvaj posao</button>
+    <button class="btn btn-danger" onclick="resetCalculator(true)">Odbaci / Isprazni</button>
 </div>
 
 <!-- ===== KLIJENTI ===== -->
 <div id="tab-klijenti" class="section">
     <h2 class="section-title">Klijenti</h2>
     <button class="btn btn-accent" onclick="openClientForm(null, false)">+ Novi klijent</button>
-    <input type="text" class="search-input" id="clients-search" placeholder="Pretraži klijente..." oninput="debounceLoadClients()">
+    <input type="text" class="search-input" id="clients-search" placeholder="🔍 Pretraži klijente…" oninput="debounceLoadClients()">
     <div id="clients-list"></div>
 </div>
 
@@ -166,7 +154,7 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
         <div class="form-group"><label>Email</label><input type="email" id="s-kontakt_email"></div>
     </div>
     <div class="card">
-        <div class="card-title" style="margin-bottom:12px;">PDV i valuta</div>
+        <div class="card-title" style="margin-bottom:12px;">PDV</div>
         <div class="form-group">
             <label>Firma je u sistemu PDV-a?</label>
             <div class="radio-group">
@@ -178,7 +166,12 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
             <div class="form-group"><label>PDV stopa (%)</label><input type="number" id="s-pdv_rate" step="0.01"></div>
             <div class="form-group"><label>Kurs EUR → RSD</label><input type="number" id="s-kurs_eur" step="0.0001"></div>
         </div>
-        <div class="form-group"><label>Napomena kad nema PDV-a (na računima)</label><textarea id="s-pdv_napomena"></textarea></div>
+        <div class="form-group"><label>Napomena kad firma NIJE u PDV sistemu</label><textarea id="s-pdv_napomena"></textarea></div>
+        <div class="form-group">
+            <label>Napomena — obrnuti obračun (čl. 10 st. 2 t. 3)</label>
+            <textarea id="s-pdv_cl10_napomena"></textarea>
+            <div class="subnote">Štampa se automatski na dokumentima klijenata označenih za obrnuti obračun. Tačnu formulaciju daje knjigovođa.</div>
+        </div>
         <div class="form-group"><label>Ponuda važi (dana)</label><input type="number" id="s-ponuda_vazi_dana"></div>
     </div>
     <button class="btn btn-success" onclick="saveSettings()">💾 Sačuvaj podešavanja</button>
@@ -201,10 +194,7 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
         <button class="modal-close" onclick="closeDocModal()">×</button>
     </div>
     <div class="modal-body">
-        <div id="doc-modal-status" style="margin-bottom:12px;"></div>
         <div class="preview-box" id="doc-preview"></div>
-        <div id="doc-children" style="margin-top:14px;"></div>
-        <div id="doc-payments" style="margin-top:14px;"></div>
     </div>
     <div class="modal-actions" id="doc-modal-actions"></div>
 </div>
@@ -217,7 +207,7 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
         <div class="form-group">
             <label>Tip klijenta</label>
             <div class="radio-group">
-                <div class="radio-option"><input type="radio" id="cf-tip-f" name="cf-tip" value="fizicko" checked><label for="cf-tip-f">Fizičko lice</label></div>
+                <div class="radio-option"><input type="radio" id="cf-tip-f" name="cf-tip" value="fizicko" checked onchange="toggleClientFields()"><label for="cf-tip-f">Fizičko lice</label></div>
                 <div class="radio-option"><input type="radio" id="cf-tip-p" name="cf-tip" value="pravno" onchange="toggleClientFields()"><label for="cf-tip-p">Pravno lice</label></div>
             </div>
         </div>
@@ -235,6 +225,14 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
                 <div class="form-group"><label>PIB</label><input type="text" id="cf-pib"></div>
                 <div class="form-group"><label>Matični broj</label><input type="text" id="cf-mb"></div>
             </div>
+            <div class="form-group">
+                <label>PDV tretman</label>
+                <div class="radio-group">
+                    <div class="radio-option"><input type="radio" id="cf-pdv-std" name="cf-pdv" value="standard" checked><label for="cf-pdv-std">PDV 20%</label></div>
+                    <div class="radio-option"><input type="radio" id="cf-pdv-c10" name="cf-pdv" value="cl10"><label for="cf-pdv-c10">Čl. 10 st. 2 t. 3</label></div>
+                </div>
+                <div class="subnote">Čl. 10: obrnuti obračun — PDV obračunava primalac (građevinski radovi za PDV obveznike). Na računu ide napomena, bez PDV-a.</div>
+            </div>
         </div>
         <div class="form-group"><label>Napomena</label><textarea id="cf-napomena"></textarea></div>
         <button class="btn btn-success" onclick="saveClient()">💾 Sačuvaj</button>
@@ -242,40 +240,29 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
     </div>
 </div>
 
-<!-- ===== CONVERT OVERLAY ===== -->
-<div class="overlay" id="convert-overlay">
+<!-- ===== IZDAVANJE DOKUMENTA (predracun / konacni) ===== -->
+<div class="overlay" id="issue-overlay">
     <div class="overlay-content">
-        <h3>Napravi dokument iz ponude</h3>
-        <input type="hidden" id="cv-parent-id">
-        <div class="form-group">
-            <label>Tip dokumenta</label>
-            <div class="radio-group">
-                <div class="radio-option"><input type="radio" id="cv-t-pre" name="cv-type" value="predracun" checked onchange="cvRefresh()"><label for="cv-t-pre">Predračun</label></div>
-                <div class="radio-option"><input type="radio" id="cv-t-avr" name="cv-type" value="avansni" onchange="cvRefresh()"><label for="cv-t-avr">Avansni račun</label></div>
-                <div class="radio-option"><input type="radio" id="cv-t-fak" name="cv-type" value="faktura" onchange="cvRefresh()"><label for="cv-t-fak">Faktura</label></div>
-            </div>
-        </div>
+        <h3 id="issue-title">Izdaj dokument</h3>
+        <input type="hidden" id="iss-type">
         <div class="form-group">
             <label>Valuta dokumenta</label>
             <div class="radio-group">
-                <div class="radio-option"><input type="radio" id="cv-v-rsd" name="cv-valuta" value="RSD" checked onchange="cvRefresh()"><label for="cv-v-rsd">RSD (dinari)</label></div>
-                <div class="radio-option"><input type="radio" id="cv-v-eur" name="cv-valuta" value="EUR" onchange="cvRefresh()"><label for="cv-v-eur">EUR</label></div>
+                <div class="radio-option"><input type="radio" id="iss-v-rsd" name="iss-valuta" value="RSD" checked onchange="issRefresh()"><label for="iss-v-rsd">RSD (dinari)</label></div>
+                <div class="radio-option"><input type="radio" id="iss-v-eur" name="iss-valuta" value="EUR" onchange="issRefresh()"><label for="iss-v-eur">EUR</label></div>
             </div>
         </div>
-        <div class="form-group" id="cv-kurs-group">
+        <div class="form-group" id="iss-kurs-group">
             <label>Kurs EUR → RSD</label>
-            <input type="number" id="cv-kurs" step="0.0001" oninput="cvRefresh()">
-        </div>
-        <div class="form-group" id="cv-avans-group" style="display:none;">
-            <label>Avans (% od ukupnog iznosa)</label>
-            <input type="number" id="cv-avans" value="50" min="1" max="100" oninput="cvRefresh()">
+            <input type="number" id="iss-kurs" step="0.0001" oninput="issRefresh()">
         </div>
         <div class="calc-display">
-            <div class="label">Iznos dokumenta</div>
-            <div class="value" id="cv-preview-total">—</div>
+            <div class="label" id="iss-preview-label">Iznos dokumenta</div>
+            <div class="value" id="iss-preview-total">—</div>
         </div>
-        <button class="btn btn-success" onclick="doConvert()">✓ Napravi dokument</button>
-        <button class="btn btn-outline" onclick="closeOverlay('convert-overlay')">Otkaži</button>
+        <div class="subnote" id="iss-note" style="margin-top:0;"></div>
+        <button class="btn btn-success" onclick="doIssue()">✓ Izdaj</button>
+        <button class="btn btn-outline" onclick="closeOverlay('issue-overlay')">Otkaži</button>
     </div>
 </div>
 
@@ -283,10 +270,21 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 <div class="overlay" id="payment-overlay">
     <div class="overlay-content">
         <h3>Nova uplata</h3>
-        <input type="hidden" id="pay-doc-id">
+        <input type="hidden" id="pay-job-id">
         <div class="form-row">
             <div class="form-group"><label>Datum</label><input type="date" id="pay-datum"></div>
             <div class="form-group"><label>Iznos</label><input type="number" id="pay-iznos" step="0.01" min="0"></div>
+        </div>
+        <div class="form-group">
+            <label>Valuta uplate</label>
+            <div class="radio-group">
+                <div class="radio-option"><input type="radio" id="pay-v-eur" name="pay-valuta" value="EUR" checked onchange="payToggleKurs()"><label for="pay-v-eur">EUR</label></div>
+                <div class="radio-option"><input type="radio" id="pay-v-rsd" name="pay-valuta" value="RSD" onchange="payToggleKurs()"><label for="pay-v-rsd">RSD</label></div>
+            </div>
+        </div>
+        <div class="form-group" id="pay-kurs-group" style="display:none;">
+            <label>Kurs EUR → RSD (na dan uplate)</label>
+            <input type="number" id="pay-kurs" step="0.0001">
         </div>
         <div class="form-group">
             <label>Način uplate</label>
@@ -296,7 +294,7 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
                 <option value="kartica">Kartica</option>
             </select>
         </div>
-        <div class="form-group"><label>Napomena</label><input type="text" id="pay-napomena" placeholder="npr. avans"></div>
+        <div class="form-group"><label>Napomena</label><input type="text" id="pay-napomena" placeholder="npr. prva rata"></div>
         <button class="btn btn-success" onclick="savePayment()">💾 Sačuvaj uplatu</button>
         <button class="btn btn-outline" onclick="closeOverlay('payment-overlay')">Otkaži</button>
     </div>
@@ -304,7 +302,14 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 
 <div class="toast" id="toast"></div>
 
+<button class="fab" onclick="startNewJob()">+ Novi posao</button>
+<div class="bottom-nav">
+    <button class="bnav-btn active" id="bnav-poslovi" onclick="switchTab('poslovi')"><span class="ic">📋</span>Poslovi</button>
+    <button class="bnav-btn" id="bnav-klijenti" onclick="switchTab('klijenti')"><span class="ic">👥</span>Klijenti</button>
+    <button class="bnav-btn" id="bnav-podesavanja" onclick="switchTab('podesavanja')"><span class="ic">⚙️</span>Podešavanja</button>
+</div>
+
 <script src="assets/fonts.js?v=1"></script>
-<script src="assets/app.js?v=1"></script>
+<script src="assets/app.js?v=2"></script>
 </body>
 </html>

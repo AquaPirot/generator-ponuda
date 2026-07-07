@@ -16,7 +16,7 @@ if ($tok) {
 }
 $S = get_all_settings();
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-$tipNaziv = ['ponuda'=>'PONUDA','predracun'=>'PREDRAČUN','avansni'=>'AVANSNI RAČUN','faktura'=>'FAKTURA'];
+$tipNaziv = ['ponuda'=>'PONUDA','predracun'=>'PREDRAČUN','avansni'=>'AVANSNI RAČUN','faktura'=>'KONAČNI RAČUN'];
 ?>
 <!DOCTYPE html>
 <html lang="sr">
@@ -77,7 +77,7 @@ $tipNaziv = ['ponuda'=>'PONUDA','predracun'=>'PREDRAČUN','avansni'=>'AVANSNI RA
             <tr>
                 <td><?= $i+1 ?></td>
                 <td><?= $h($it['naziv'] ?? '') ?><?php if (!empty($it['opis'])): ?><br><small style="color:#888"><?= $h($it['opis']) ?></small><?php endif; ?></td>
-                <td class="right" style="font-weight:700;"><?= number_format((float)($it['iznos'] ?? 0), 2, ',', '.') ?> <?= $val ?></td>
+                <td class="right" style="font-weight:700;<?= (float)($it['iznos'] ?? 0) < 0 ? 'color:#e74c3c;' : '' ?>"><?= number_format((float)($it['iznos'] ?? 0), 2, ',', '.') ?> <?= $val ?></td>
             </tr>
             <?php endforeach; ?>
         </table>
@@ -86,11 +86,20 @@ $tipNaziv = ['ponuda'=>'PONUDA','predracun'=>'PREDRAČUN','avansni'=>'AVANSNI RA
             <?php if ((float)$doc['disc_amount'] > 0): ?>
             <div class="right" style="color:#e74c3c;font-size:14px;">Popust: -<?= number_format((float)$doc['disc_amount'], 2, ',', '.') ?> <?= $val ?></div>
             <?php endif; ?>
-            <?php if ((float)$doc['pdv_amount'] > 0): ?>
+            <?php if (($doc['pdv_mode'] ?? 'none') === 'standard' && (float)$doc['pdv_amount'] > 0): ?>
+            <div class="right" style="font-size:14px;">Osnovica: <?= number_format((float)$doc['total'] - (float)$doc['pdv_amount'], 2, ',', '.') ?> <?= $val ?></div>
             <div class="right" style="font-size:14px;">PDV (<?= rtrim(rtrim(number_format((float)$doc['pdv_rate'],2,',','.'),'0'),',') ?>%): <?= number_format((float)$doc['pdv_amount'], 2, ',', '.') ?> <?= $val ?></div>
             <?php endif; ?>
         </div>
-        <div class="tot">UKUPNO: <?= number_format((float)$doc['total'], 2, ',', '.') ?> <?= $val ?></div>
+        <?php
+            $items_have_avans = false;
+            foreach ($items as $it) { if (($it['kind'] ?? '') === 'avans_minus') { $items_have_avans = true; break; } }
+            $totLabel = ($doc['type'] === 'faktura' && $items_have_avans) ? 'ZA UPLATU' : 'UKUPNO';
+        ?>
+        <div class="tot"><?= $totLabel ?>: <?= number_format((float)$doc['total'], 2, ',', '.') ?> <?= $val ?></div>
+        <?php if (($doc['pdv_mode'] ?? '') === 'cl10' && !empty($doc['pdv_napomena'])): ?>
+        <div class="note" style="border:1px solid #e0b050;background:#fdf6e8;">⚖ <?= $h($doc['pdv_napomena']) ?></div>
+        <?php endif; ?>
         <?php if ($doc['rok']): ?><div style="margin-top:12px;font-size:13px;"><strong>Rok realizacije:</strong> <?= $h($doc['rok']) ?></div><?php endif; ?>
         <?php if ($doc['napomena']): ?><div style="margin-top:8px;font-size:13px;"><strong>Napomena:</strong> <?= nl2br($h($doc['napomena'])) ?></div><?php endif; ?>
         <?php if ($doc['type'] !== 'ponuda' && !empty($S['firma_ziro'])): ?>
@@ -99,8 +108,8 @@ $tipNaziv = ['ponuda'=>'PONUDA','predracun'=>'PREDRAČUN','avansni'=>'AVANSNI RA
             Poziv na broj: <?= $h($doc['oznaka']) ?>
         </div>
         <?php endif; ?>
-        <?php if (!empty($S['pdv_enabled']) && $S['pdv_enabled'] === '0' && $doc['type'] !== 'ponuda'): ?>
-        <div class="note"><?= $h($S['pdv_napomena'] ?? '') ?></div>
+        <?php if (($doc['pdv_mode'] ?? 'none') === 'none' && !empty($doc['pdv_napomena']) && $doc['type'] !== 'ponuda'): ?>
+        <div class="note"><?= $h($doc['pdv_napomena']) ?></div>
         <?php endif; ?>
         <div class="foot">
             <?= $h($S['firma_naziv']) ?> | Tel: <?= $h($S['kontakt_tel']) ?> - <?= $h($S['kontakt_ime']) ?><br>
