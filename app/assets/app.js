@@ -330,6 +330,7 @@ function addPergola() {
         id, montaza: 'Naslonjena na objekat', tip: 'Ceradno platno',
         sirina: '', dubina: '', visina: '250', strane: '0',
         cenaM2: SETTINGS.price_pergola_m2 || '', cenaZatvM2: SETTINGS.price_close_m2 || '',
+        konstrukcija: '',
         total: 0, manualTotal: false
     });
     renderPergolas(); calcPergola(id);
@@ -365,6 +366,10 @@ function renderPergolas() {
                 <div class="radio-option"><input type="radio" id="pm-s-${p.id}" name="pm-${p.id}" value="Samostojeća" ${chk(p.montaza,'Samostojeća')} onchange="updPergola(${p.id},'montaza',this.value)"><label for="pm-s-${p.id}">Samostojeća</label></div>
             </div>
         </div>
+        <div class="form-group" id="p-konstr-group-${p.id}" style="display:${p.montaza === 'Samostojeća' ? 'block' : 'none'};">
+            <label>Cena konstrukcije za samostojeću pergolu (€)</label>
+            <input type="number" min="0" step="1" value="${p.konstrukcija || ''}" oninput="updPergola(${p.id},'konstrukcija',this.value)">
+        </div>
         <div class="form-row">
             <div class="form-group"><label>Širina (cm)</label><input type="number" min="0" value="${p.sirina}" oninput="updPergola(${p.id},'sirina',this.value)"></div>
             <div class="form-group"><label>Dubina (cm)</label><input type="number" min="0" value="${p.dubina}" oninput="updPergola(${p.id},'dubina',this.value)"></div>
@@ -394,6 +399,9 @@ function renderPergolas() {
             <div class="calc-display"><div class="label">Cena pergole</div><div class="value" style="font-size:17px;"><span id="p-sub-${p.id}">0.00</span> <span class="unit">€</span></div></div>
             <div class="calc-display"><div class="label">Cena zatvaranja</div><div class="value" style="font-size:17px;"><span id="p-close-${p.id}">0.00</span> <span class="unit">€</span></div></div>
         </div>
+        <div class="calc-display" id="p-konstr-display-${p.id}" style="display:${p.montaza === 'Samostojeća' ? 'block' : 'none'};">
+            <div class="label">Cena konstrukcije</div><div class="value" style="font-size:17px;"><span id="p-konstr-val-${p.id}">0.00</span> <span class="unit">€</span></div>
+        </div>
         <div class="price-box" style="margin-top:8px;">
             <div class="label">Ukupno ova pergola (klikni da koriguješ)</div>
             <div class="price" style="font-size:22px;">
@@ -420,13 +428,21 @@ function calcPergola(id) {
     }
     const cP = area * (parseFloat(p.cenaM2) || 0);
     const cZ = sideArea * (parseFloat(p.cenaZatvM2) || 0);
-    if (!p.manualTotal) p.total = cP + cZ;
+    const isSamostojeca = p.montaza === 'Samostojeća';
+    const cK = isSamostojeca ? (parseFloat(p.konstrukcija) || 0) : 0;
+    if (!p.manualTotal) p.total = cP + cZ + cK;
     const el = document.getElementById(`p-area-${id}`);
     if (el) {
         el.textContent = area.toFixed(2);
         document.getElementById(`p-sub-${id}`).textContent = cP.toFixed(2);
         document.getElementById(`p-close-${id}`).textContent = cZ.toFixed(2);
         document.getElementById(`p-total-${id}`).value = p.total.toFixed(2);
+        const kg = document.getElementById(`p-konstr-group-${id}`);
+        if (kg) kg.style.display = isSamostojeca ? 'block' : 'none';
+        const kd = document.getElementById(`p-konstr-display-${id}`);
+        if (kd) kd.style.display = isSamostojeca ? 'block' : 'none';
+        const kv = document.getElementById(`p-konstr-val-${id}`);
+        if (kv) kv.textContent = cK.toFixed(2);
     }
     calcSummary();
 }
@@ -539,9 +555,10 @@ function buildItems() {
         const area = ((parseFloat(p.sirina)||0) * (parseFloat(p.dubina)||0) / 10000).toFixed(2);
         let opis = `${p.sirina||0}×${p.dubina||0} cm = ${area} m²`;
         if (parseInt(p.strane) > 0) opis += `, zatvaranje: ${p.strane} ${p.strane==='1'?'strana':'strane'} (h=${p.visina||250} cm)`;
+        if (p.montaza === 'Samostojeća' && parseFloat(p.konstrukcija) > 0) opis += `, konstrukcija: ${fmt(p.konstrukcija)} €`;
         items.push({
             kind: 'pergola',
-            naziv: `Pergola — ${p.tip} (${p.montaza})`,
+            naziv: p.tip === 'Bioklimatska' ? `Pergola — Bioklimatska (${p.montaza})` : `Pergola (${p.montaza})`,
             opis,
             iznos: p.total || 0,
             meta: { ...p }
