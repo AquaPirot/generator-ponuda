@@ -789,7 +789,6 @@ function buildDocHtml(doc) {
             <tr><th>#</th><th>Opis</th><th style="text-align:right;">Iznos</th></tr>
             ${rows}
         </table>
-        ${doc.items.some(i => i.kind === 'pergola') ? `<div class="info-note">U cenu pergola je uključeno: motor, automatika i LED rasveta. Montaža i transport su uračunati.</div>` : ''}
         ${glassNoteHtml(doc.items)}
         <div style="margin-top:14px;padding-top:10px;border-top:1px solid #ddd;">
             <div style="text-align:right;font-size:14px;">Međuzbir: ${fmt(doc.subtotal)} ${val}</div>
@@ -797,14 +796,33 @@ function buildDocHtml(doc) {
             ${pdvBlock}
         </div>
         <div class="total-line">${totalLabel(doc)}: ${fmt(doc.total)} ${val}</div>
-        ${doc.rok ? `<div style="margin-top:12px;font-size:13px;"><strong>Rok realizacije:</strong> ${esc(doc.rok)}</div>` : ''}
+        ${doc.rok ? `<div style="margin-top:12px;font-size:13px;"><strong>Rok realizacije od uplate avansa:</strong> ${esc(doc.rok)}</div>` : ''}
         ${doc.napomena ? `<div style="margin-top:8px;font-size:13px;"><strong>Napomena:</strong> ${esc(doc.napomena)}</div>` : ''}
+        ${pergolaInfoHtml(doc.items, doc.type)}
         ${isRacun && SETTINGS.firma_ziro ? `<div class="info-note"><strong>Podaci za uplatu:</strong><br>Tekući račun: ${esc(SETTINGS.firma_ziro)}${SETTINGS.firma_banka ? ' (' + esc(SETTINGS.firma_banka) + ')' : ''}<br>Poziv na broj: ${esc(doc.oznaka)}</div>` : ''}
         ${pdvNote}
         <div class="footer-note">
             ${esc(SETTINGS.firma_naziv)} | Tel: ${esc(SETTINGS.kontakt_tel)} - ${esc(SETTINGS.kontakt_ime)}<br>
             ${doc.type === 'ponuda' ? `Ponuda važi ${esc(SETTINGS.ponuda_vazi_dana || '7')} dana od datuma izdavanja.` : ''}
         </div>`;
+}
+
+// Detaljna specifikacija pergole — sta je/nije ukljuceno, garancija, uslovi placanja.
+// Prikazuje se samo na ponudi (ne na predracunu/racunima), samo ako ima stavki pergole.
+function pergolaInfoHtml(items, docType) {
+    if (docType !== 'ponuda' || !items.some(i => i.kind === 'pergola')) return '';
+    const li = txt => (txt || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => `<li>${esc(l)}</li>`).join('');
+    const inc = li(SETTINGS.pergola_info || SETTING_DEFAULTS.pergola_info);
+    const exc = li(SETTINGS.pergola_iskljuceno || SETTING_DEFAULTS.pergola_iskljuceno);
+    const gar = SETTINGS.garancija_tekst || SETTING_DEFAULTS.garancija_tekst;
+    const usl = SETTINGS.uslovi_placanja_tekst || SETTING_DEFAULTS.uslovi_placanja_tekst;
+    if (!inc && !exc && !gar && !usl) return '';
+    return `
+        <div class="section-header" style="margin-top:16px;">ŠTA JE UKLJUČENO U CENU</div>
+        <ul class="spec-list">${inc}</ul>
+        ${exc ? `<div class="section-header" style="margin-top:12px;">NIJE UKLJUČENO</div><ul class="spec-list exc">${exc}</ul>` : ''}
+        ${gar ? `<div class="info-note"><strong>Garancija:</strong> ${esc(gar)}</div>` : ''}
+        ${usl ? `<div class="info-note"><strong>Uslovi plaćanja:</strong> ${esc(usl)}</div>` : ''}`;
 }
 
 function glassNoteHtml(items) {
@@ -841,8 +859,18 @@ async function copyDocText() {
     }
     t += `\n*${totalLabel(doc)}: ${fmt(doc.total)} ${val}*\n\n`;
     if (doc.pdv_mode === 'cl10' && doc.pdv_napomena) t += `${doc.pdv_napomena}\n\n`;
-    if (doc.rok) t += `Rok realizacije: ${doc.rok}\n`;
+    if (doc.rok) t += `Rok realizacije od uplate avansa: ${doc.rok}\n`;
     if (doc.napomena) t += `Napomena: ${doc.napomena}\n`;
+    if (doc.type === 'ponuda' && doc.items.some(i => i.kind === 'pergola')) {
+        const inc = (SETTINGS.pergola_info || SETTING_DEFAULTS.pergola_info || '').split('\n').map(l => l.trim()).filter(Boolean);
+        const exc = (SETTINGS.pergola_iskljuceno || SETTING_DEFAULTS.pergola_iskljuceno || '').split('\n').map(l => l.trim()).filter(Boolean);
+        const gar = SETTINGS.garancija_tekst || SETTING_DEFAULTS.garancija_tekst;
+        const usl = SETTINGS.uslovi_placanja_tekst || SETTING_DEFAULTS.uslovi_placanja_tekst;
+        if (inc.length) t += `\n*Šta je uključeno u cenu:*\n` + inc.map(l => `• ${l}`).join('\n') + `\n`;
+        if (exc.length) t += `\n*Nije uključeno:*\n` + exc.map(l => `• ${l}`).join('\n') + `\n`;
+        if (gar) t += `\n*Garancija:* ${gar}\n`;
+        if (usl) t += `*Uslovi plaćanja:* ${usl}\n`;
+    }
     if (doc.type === 'ponuda') t += `\nPonuda važi ${SETTINGS.ponuda_vazi_dana || 7} dana.\n`;
     t += `${SETTINGS.firma_naziv} | Tel: ${SETTINGS.kontakt_tel} - ${SETTINGS.kontakt_ime}`;
     try { await navigator.clipboard.writeText(t); showToast('Tekst kopiran!'); }
@@ -967,12 +995,53 @@ function downloadDocPDF() {
         y += cl.length * 4 + 8;
         pdf.setFontSize(9.5); pdf.setTextColor(50,50,50);
     }
-    if (doc.rok) { ckPage(8); pdf.setFont('DejaVu','bold'); pdf.text('Rok realizacije: ', M, y); pdf.setFont('DejaVu','normal'); pdf.text(doc.rok, M+33, y); y += 7; }
+    if (doc.rok) { ckPage(8); pdf.setFont('DejaVu','bold'); pdf.text('Rok realizacije od uplate avansa: ', M, y); pdf.setFont('DejaVu','normal'); pdf.text(doc.rok, M+62, y); y += 7; }
     if (doc.napomena) {
         ckPage(16); pdf.setFont('DejaVu','bold'); pdf.text('Napomena:', M, y); pdf.setFont('DejaVu','normal');
         const nl = pdf.splitTextToSize(doc.napomena, CW - 28);
         pdf.text(nl, M+26, y); y += nl.length * 5 + 3;
     }
+
+    if (doc.type === 'ponuda' && doc.items.some(i => i.kind === 'pergola')) {
+        const incLines = (SETTINGS.pergola_info || SETTING_DEFAULTS.pergola_info || '').split('\n').map(l => l.trim()).filter(Boolean);
+        const excLines = (SETTINGS.pergola_iskljuceno || SETTING_DEFAULTS.pergola_iskljuceno || '').split('\n').map(l => l.trim()).filter(Boolean);
+        const gar = SETTINGS.garancija_tekst || SETTING_DEFAULTS.garancija_tekst;
+        const usl = SETTINGS.uslovi_placanja_tekst || SETTING_DEFAULTS.uslovi_placanja_tekst;
+
+        const bulletBlock = (title, lines, titleColor) => {
+            if (!lines.length) return;
+            ckPage(12);
+            y += 4;
+            pdf.setFont('DejaVu','bold'); pdf.setFontSize(9.5); pdf.setTextColor(...titleColor);
+            pdf.text(title, M, y); y += 5.5;
+            pdf.setFont('DejaVu','normal'); pdf.setFontSize(9); pdf.setTextColor(60,60,60);
+            lines.forEach(line => {
+                const wrapped = pdf.splitTextToSize('• ' + line, CW - 4);
+                ckPage(wrapped.length * 4.6);
+                pdf.text(wrapped, M + 2, y);
+                y += wrapped.length * 4.6;
+            });
+        };
+        bulletBlock('ŠTA JE UKLJUČENO U CENU', incLines, [180,135,80]);
+        bulletBlock('NIJE UKLJUČENO', excLines, [150,150,150]);
+
+        if (gar) {
+            ckPage(10); y += 3;
+            pdf.setFont('DejaVu','bold'); pdf.setFontSize(9); pdf.setTextColor(50,50,50);
+            pdf.text('Garancija:', M, y); pdf.setFont('DejaVu','normal');
+            const gl = pdf.splitTextToSize(gar, CW - 22);
+            pdf.text(gl, M + 20, y); y += gl.length * 4.6;
+        }
+        if (usl) {
+            ckPage(10); y += 3;
+            pdf.setFont('DejaVu','bold'); pdf.setFontSize(9); pdf.setTextColor(50,50,50);
+            pdf.text('Uslovi plaćanja:', M, y); pdf.setFont('DejaVu','normal');
+            const ul = pdf.splitTextToSize(usl, CW - 32);
+            pdf.text(ul, M + 30, y); y += ul.length * 4.6;
+        }
+        y += 3;
+    }
+
     if (isRacun && SETTINGS.firma_ziro) {
         ckPage(20);
         pdf.setFillColor(248,245,240); pdf.rect(M, y-3, CW, 17, 'F');
@@ -1137,12 +1206,37 @@ async function saveClient() {
 // ============================================
 const SETTING_KEYS = ['firma_naziv','firma_podnaslov','firma_adresa','firma_mesto','firma_pib','firma_mb',
     'firma_ziro','firma_banka','kontakt_ime','kontakt_tel','kontakt_email','pdv_rate','pdv_napomena',
-    'pdv_cl10_napomena','kurs_eur','ponuda_vazi_dana'];
+    'pdv_cl10_napomena','kurs_eur','ponuda_vazi_dana',
+    'pergola_info','pergola_iskljuceno','garancija_tekst','uslovi_placanja_tekst'];
+
+// Predlog teksta dok polje nije popunjeno — upisuje se tek kad korisnik sačuva Podešavanja
+const SETTING_DEFAULTS = {
+    pergola_info: [
+        'Najnoviji model pergole',
+        'Samsung LED rasveta',
+        'Cuppon motor i daljinski upravljač (motor i rasveta na istom daljinskom)',
+        'Konstrukcija od ekstrudiranog aluminijuma, farbana elektrostatskom farbom',
+        'Aluminijumske vodilice pergole',
+        'Nagib pergole 10–15%',
+        'Oluci za vodu sakriveni u konstrukciji',
+        'Nadstrešnica od lima za skupljenu pergolu',
+        '3D Blockout — troslojno termostabilno platno',
+        'Otpornost na vetar klase 10 po Boforovoj skali (do 102 km/h)',
+        'Transport i montaža',
+    ].join('\n'),
+    pergola_iskljuceno: [
+        'Elektro priključak do mesta montaže',
+        'Građevinski radovi (temelj, sidrenje u beton ako podloga nije spremna)',
+        'Limarski radovi koji nisu deo ove ponude',
+    ].join('\n'),
+    garancija_tekst: '2 godine garancije. Garancija ne pokriva fizička oštećenja i oštećenja nastala usled vremenskih nepogoda.',
+    uslovi_placanja_tekst: 'Avans 50% pri dogovoru, ostatak na dan montaže i dopreme materijala.',
+};
 
 function fillSettingsForm() {
     SETTING_KEYS.forEach(k => {
         const el = document.getElementById('s-' + k);
-        if (el) el.value = SETTINGS[k] || '';
+        if (el) el.value = SETTINGS[k] || SETTING_DEFAULTS[k] || '';
     });
     document.getElementById(SETTINGS.pdv_enabled === '1' ? 's-pdv-da' : 's-pdv-ne').checked = true;
 }

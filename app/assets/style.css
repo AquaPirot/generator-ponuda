@@ -183,6 +183,11 @@ body {
 .preview-box .footer-note { font-size: 12px; color: #888; margin-top: 16px; text-align: center; }
 .preview-box .info-note { font-size: 12px; color: #666; background: #f8f5f0; padding: 8px 10px;
     border-radius: 6px; margin: 8px 0; line-height: 1.6; }
+.preview-box .spec-list { list-style: none; margin: 6px 0 4px; padding: 0; font-size: 13px; }
+.preview-box .spec-list li { padding: 4px 0 4px 22px; position: relative; line-height: 1.5; }
+.preview-box .spec-list li::before { content: "✓"; position: absolute; left: 0; color: var(--accent-dark); font-weight: 700; }
+.preview-box .spec-list.exc li { color: #999; }
+.preview-box .spec-list.exc li::before { content: "✕"; color: #c0392b; }
 
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px);
     background: var(--success); color: white; padding: 14px 28px; border-radius: 10px;

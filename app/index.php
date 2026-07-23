@@ -174,6 +174,26 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
         </div>
         <div class="form-group"><label>Ponuda važi (dana)</label><input type="number" id="s-ponuda_vazi_dana"></div>
     </div>
+    <div class="card">
+        <div class="card-title" style="margin-bottom:12px;">Specifikacija pergole (za klijenta)</div>
+        <div class="subnote" style="margin-top:0;margin-bottom:10px;">Ovaj tekst se automatski prikazuje na svakoj ponudi koja sadrži pergolu — u pregledu, PDF-u, tekstu za Viber/WhatsApp i na javnom linku. Svaki red u listama je posebna stavka.</div>
+        <div class="form-group">
+            <label>Šta je uključeno u cenu (jedan red = jedna stavka)</label>
+            <textarea id="s-pergola_info" rows="8"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Šta NIJE uključeno</label>
+            <textarea id="s-pergola_iskljuceno" rows="4"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Garancija</label>
+            <textarea id="s-garancija_tekst" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Uslovi plaćanja</label>
+            <textarea id="s-uslovi_placanja_tekst" rows="2"></textarea>
+        </div>
+    </div>
     <button class="btn btn-success" onclick="saveSettings()">💾 Sačuvaj podešavanja</button>
 
     <div class="card" style="margin-top:16px;">

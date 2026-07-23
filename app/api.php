@@ -195,7 +195,8 @@ try {
             $allowed = ['firma_naziv','firma_podnaslov','firma_adresa','firma_mesto','firma_pib','firma_mb',
                         'firma_ziro','firma_banka','kontakt_ime','kontakt_tel','kontakt_email',
                         'pdv_enabled','pdv_rate','pdv_napomena','pdv_cl10_napomena','kurs_eur','ponuda_vazi_dana',
-                        'price_pergola_m2','price_close_m2','price_glass_m2'];
+                        'price_pergola_m2','price_close_m2','price_glass_m2',
+                        'pergola_info','pergola_iskljuceno','garancija_tekst','uslovi_placanja_tekst'];
             $st = db()->prepare('INSERT INTO settings (skey, svalue) VALUES (?,?) ON DUPLICATE KEY UPDATE svalue = VALUES(svalue)');
             foreach ($allowed as $k) {
                 if (array_key_exists($k, $d)) $st->execute([$k, (string)$d[$k]]);

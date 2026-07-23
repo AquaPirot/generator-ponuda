@@ -17,6 +17,15 @@ if ($tok) {
 $S = get_all_settings();
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $tipNaziv = ['ponuda'=>'PONUDA','predracun'=>'PREDRAČUN','avansni'=>'AVANSNI RAČUN','faktura'=>'KONAČNI RAČUN'];
+
+$PERGOLA_DEFAULTS = [
+    'pergola_info' => "Najnoviji model pergole\nSamsung LED rasveta\nCuppon motor i daljinski upravljač (motor i rasveta na istom daljinskom)\nKonstrukcija od ekstrudiranog aluminijuma, farbana elektrostatskom farbom\nAluminijumske vodilice pergole\nNagib pergole 10–15%\nOluci za vodu sakriveni u konstrukciji\nNadstrešnica od lima za skupljenu pergolu\n3D Blockout — troslojno termostabilno platno\nOtpornost na vetar klase 10 po Boforovoj skali (do 102 km/h)\nTransport i montaža",
+    'pergola_iskljuceno' => "Elektro priključak do mesta montaže\nGrađevinski radovi (temelj, sidrenje u beton ako podloga nije spremna)\nLimarski radovi koji nisu deo ove ponude",
+    'garancija_tekst' => '2 godine garancije. Garancija ne pokriva fizička oštećenja i oštećenja nastala usled vremenskih nepogoda.',
+    'uslovi_placanja_tekst' => 'Avans 50% pri dogovoru, ostatak na dan montaže i dopreme materijala.',
+];
+$setOrDefault = fn($key) => !empty($S[$key]) ? $S[$key] : $PERGOLA_DEFAULTS[$key];
+$bulletLines = fn($text) => array_values(array_filter(array_map('trim', explode("\n", $text))));
 ?>
 <!DOCTYPE html>
 <html lang="sr">
@@ -40,6 +49,11 @@ $tipNaziv = ['ponuda'=>'PONUDA','predracun'=>'PREDRAČUN','avansni'=>'AVANSNI RA
     td { padding:8px 6px; border-bottom:1px solid #eee; }
     .tot { text-align:right; font-size:18px; font-weight:800; color:#1a1a2e; margin-top:16px; padding-top:12px; border-top:2px solid #d4a574; }
     .note { font-size:12px; color:#666; background:#f8f5f0; padding:8px 10px; border-radius:6px; margin:8px 0; }
+    .spec { list-style:none; margin:6px 0 4px; padding:0; font-size:13px; }
+    .spec li { padding:4px 0 4px 22px; position:relative; line-height:1.5; }
+    .spec li::before { content:"✓"; position:absolute; left:0; color:#b8895c; font-weight:700; }
+    .spec.exc li { color:#999; }
+    .spec.exc li::before { content:"✕"; color:#c0392b; }
     .foot { font-size:12px; color:#888; margin-top:16px; text-align:center; }
     .btn { display:block; width:100%; padding:16px; margin-top:14px; border:none; border-radius:10px; font-size:16px; font-weight:700;
            cursor:pointer; background:linear-gradient(135deg,#d4a574,#b8895c); color:#1a1a2e; text-align:center; text-decoration:none; }
@@ -100,8 +114,29 @@ $tipNaziv = ['ponuda'=>'PONUDA','predracun'=>'PREDRAČUN','avansni'=>'AVANSNI RA
         <?php if (($doc['pdv_mode'] ?? '') === 'cl10' && !empty($doc['pdv_napomena'])): ?>
         <div class="note" style="border:1px solid #e0b050;background:#fdf6e8;">⚖ <?= $h($doc['pdv_napomena']) ?></div>
         <?php endif; ?>
-        <?php if ($doc['rok']): ?><div style="margin-top:12px;font-size:13px;"><strong>Rok realizacije:</strong> <?= $h($doc['rok']) ?></div><?php endif; ?>
+        <?php if ($doc['rok']): ?><div style="margin-top:12px;font-size:13px;"><strong>Rok realizacije od uplate avansa:</strong> <?= $h($doc['rok']) ?></div><?php endif; ?>
         <?php if ($doc['napomena']): ?><div style="margin-top:8px;font-size:13px;"><strong>Napomena:</strong> <?= nl2br($h($doc['napomena'])) ?></div><?php endif; ?>
+        <?php
+            $hasPergola = false;
+            foreach ($items as $it) { if (($it['kind'] ?? '') === 'pergola') { $hasPergola = true; break; } }
+        ?>
+        <?php if ($doc['type'] === 'ponuda' && $hasPergola):
+            $incLines = $bulletLines($setOrDefault('pergola_info'));
+            $excLines = $bulletLines($setOrDefault('pergola_iskljuceno'));
+            $gar = $setOrDefault('garancija_tekst');
+            $usl = $setOrDefault('uslovi_placanja_tekst');
+        ?>
+        <?php if ($incLines): ?>
+        <div class="sh" style="margin-top:16px;">ŠTA JE UKLJUČENO U CENU</div>
+        <ul class="spec"><?php foreach ($incLines as $l): ?><li><?= $h($l) ?></li><?php endforeach; ?></ul>
+        <?php endif; ?>
+        <?php if ($excLines): ?>
+        <div class="sh" style="margin-top:12px;">NIJE UKLJUČENO</div>
+        <ul class="spec exc"><?php foreach ($excLines as $l): ?><li><?= $h($l) ?></li><?php endforeach; ?></ul>
+        <?php endif; ?>
+        <?php if ($gar): ?><div class="note"><strong>Garancija:</strong> <?= $h($gar) ?></div><?php endif; ?>
+        <?php if ($usl): ?><div class="note"><strong>Uslovi plaćanja:</strong> <?= $h($usl) ?></div><?php endif; ?>
+        <?php endif; ?>
         <?php if ($doc['type'] !== 'ponuda' && !empty($S['firma_ziro'])): ?>
         <div class="note"><strong>Podaci za uplatu:</strong><br>
             Tekući račun: <?= $h($S['firma_ziro']) ?><?= !empty($S['firma_banka']) ? ' (' . $h($S['firma_banka']) . ')' : '' ?><br>
