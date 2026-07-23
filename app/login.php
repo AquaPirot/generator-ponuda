@@ -2,6 +2,8 @@
 require_once __DIR__ . '/lib/db.php';
 session_start();
 if (!empty($_SESSION['user_id'])) { header('Location: index.php'); exit; }
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
 $setupNeeded = ((int)db()->query('SELECT COUNT(*) FROM users')->fetchColumn()) === 0;
 ?>
 <!DOCTYPE html>

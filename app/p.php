@@ -4,6 +4,8 @@
 // ponude.aggroup.rs/p.php?t=TOKEN
 // ============================================
 require_once __DIR__ . '/lib/db.php';
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
 
 $tok = preg_replace('/[^a-f0-9]/', '', $_GET['t'] ?? '');
 $doc = null;

@@ -2,6 +2,10 @@
 require_once __DIR__ . '/lib/db.php';
 session_start();
 if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+// verzija se automatski menja kad se fajl promeni na serveru — mobilni ne drzi stari kes
+$v = fn($f) => @filemtime(__DIR__ . '/' . $f) ?: time();
 ?>
 <!DOCTYPE html>
 <html lang="sr">
@@ -10,7 +14,7 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Poslovi — PROHORECA AG GROUP</title>
     <meta name="theme-color" content="#d4a574">
-    <link rel="stylesheet" href="assets/style.css?v=2">
+    <link rel="stylesheet" href="assets/style.css?v=<?= $v('assets/style.css') ?>">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
@@ -329,7 +333,7 @@ if (empty($_SESSION['user_id'])) { header('Location: login.php'); exit; }
     <button class="bnav-btn" id="bnav-podesavanja" onclick="switchTab('podesavanja')"><span class="ic">⚙️</span>Podešavanja</button>
 </div>
 
-<script src="assets/fonts.js?v=1"></script>
-<script src="assets/app.js?v=2"></script>
+<script src="assets/fonts.js?v=<?= $v('assets/fonts.js') ?>"></script>
+<script src="assets/app.js?v=<?= $v('assets/app.js') ?>"></script>
 </body>
 </html>
